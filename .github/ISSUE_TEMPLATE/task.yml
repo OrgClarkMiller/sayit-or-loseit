@@ -1,0 +1,55 @@
+name: Task
+description: Template for development, design, setup, or other project work
+labels: []
+
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe what needs to be completed and why.
+      placeholder: Describe the work that needs to be done.
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical-notes
+    attributes:
+      label: Technical Notes & Context
+      description: Add any technical details, dependencies, design references, or implementation notes.
+      placeholder: |
+        - Technical requirements
+        - Dependencies
+        - Design or architecture references
+        - Other useful context
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: List the requirements that must be met for this task to be considered complete.
+      placeholder: |
+        - [ ] Requirement 1
+        - [ ] Requirement 2
+        - [ ] Requirement 3
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: definition-of-done
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Acceptance criteria are verified and met.
+        - label: Out-of-scope changes are split into separate tasks or documented.
+        - label: Code is readable, follows project style, and avoids unnecessary complexity.
+        - label: Code is backwards compatible (or deprecated code has no consumers).
+        - label: Pre-commit hooks pass (lint, format, tests).
+        - label: CI/CD pipeline is green.
+        - label: Existing tests pass for impacted components.
+        - label: Feature is manually tested by another team member where applicable.
+        - label: Documentation is up-to-date.
+        - label: At least one peer review is completed with major comments resolved.
+        - label: No secrets or sensitive data are committed.
