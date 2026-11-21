@@ -84,7 +84,6 @@ class SentenceGenerator:
     def generate(self, sentence_context: ISentenceContext) -> GeneratedSentence | None:
         try:
             prompt, image = self._build_prompt(sentence_context)
-            print(prompt)
 
             input = None
 
@@ -105,7 +104,7 @@ class SentenceGenerator:
                 input=input,
                 response_format={
                     "type": "text",
-                    "mine_type": "application/json",
+                    "mime_type": "application/json",
                     "schema": GeneratedSentence.model_json_schema()
                 }
             )

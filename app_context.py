@@ -48,6 +48,7 @@ class AppContext:
         """
         conf = config.get_config()
         self.generator = SentenceGenerator(
+            source_lang=conf.get("Language", "source", fallback="English"),
             target_lang=conf.get("Language", "target", fallback="Russian"),
             proficiency=conf.get("Language", "proficiency", fallback=LanguageProficiency.FRESHY),
             max_words=conf.getint("Sentence", "max_words", fallback=10),
@@ -98,27 +99,27 @@ class AppContext:
         if s_ctx is None:
             return
         # 1. Generate Sentence and phonetics
-        sentence = self.generator.generate(s_ctx)
-        self.overlay.set_sentence(sentence)
+        gen = self.generator.generate(s_ctx)
+
         conf = config.get_config()
         target_lang = conf['Language']['target']
         proficieny = conf['Language']['proficiency']
 
-        sent_phon = phon.generate(sentence, target_lang)
+        self.overlay.set_language_label(target_lang, proficiency)  # new: fills the header
+        self.overlay.set_source_lang_sentence(gen.source_lang)
+        self.overlay.set_target_lang_sentence(gen.target_lang)
+
+        sent_phon = phon.generate(gen.target_lang, target_lang)
         est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
-        print(f'Recording Response for {est_dur} s')
-        self.overlay.set_recording(True)
+
+        self.overlay.set_recording(True, est_dur)
         wav = recording.record(est_dur)
         self.overlay.set_recording(False)
-        print('Finished recording response')
         resp_phon = phon.generate(wav, target_lang)
 
-        print(sent_phon)
-        print(resp_phon)
         percent_close = phon.similarity(sent_phon, resp_phon)
-        self.overlay.set_closeness(percent_close)
+        self.overlay.set_similarity_percent(percent_close)
 
-        # TODO: Handle mic input, compare against sentence audio file
 
         if DEBUG_PHONETICS:
             speaking.speak(sent_phon)
