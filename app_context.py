@@ -11,7 +11,6 @@ from audio import phon, recording, speaking
 DEBUG_PHONETICS = False
 CONTEXT_READ_DELAY = 10
 
-
 # Holds refs to all essential components such as
 #the tray, the different windows and things
 #like stop events to make all windows and such
@@ -91,7 +90,6 @@ class AppContext:
             self.config_window.start()
 
     def _update_overlay(self, show):
-        print('Updating overlay')
         if not show and self.overlay is not None:
             self.overlay.close()
             self.overlay = None # Delete Overlay

@@ -3,11 +3,13 @@ import io
 import time
 from pathlib import Path
 import tkinter as tk
+import color_palette  # project root module, not part of the window package
 
 from PIL import Image
 from .window import MARGIN, Window, WindowPosition
 from screen_io.screen_capture import exclude_from_capture, user32
 from .window_helpers import hwnd, make_click_through, round_corners
+from punishment.fail_severity import get_fail_severity, FAIL_SEVERITY_COLOR
 
 # Keyed out by the window: anything exactly this color is see-through. Near-black rather
 # than magenta because Windows anti-aliases text against the background color, so text
@@ -15,19 +17,6 @@ from .window_helpers import hwnd, make_click_through, round_corners
 # and blue fringes. Nothing else may use this exact color.
 TRANSPARENT = "#010101"
 TRANSPARENT_RGB = (1, 1, 1)
-
-# ---- Design spec (docs/overlay-mockup.pdf) ----
-BACKDROP  = "#18181b"  # translucent panel behind the text
-BACKDROP_ALPHA = 0.75  # 0 = invisible, 1 = solid
-TEXT      = "#fafafa"  # sentence, primary text
-MUTED     = "#d4d4d8"  # header label, translation (lighter than the spec: it sits inside a dark outline)
-TRACK     = "#3f3f46"  # empty part of the countdown bar
-OUTLINE   = "#18181b"  # dark edge around all text, so it reads over light and dark apps
-RED       = "#ef4444"
-ORANGE    = "#f97316"
-AMBER     = "#facc15"
-LIME      = "#a3e635"
-GREEN     = "#22c55e"
 
 # Font tuples, not tkinter.font.Font objects: those would be freed on whatever thread
 # drops them last, which Tk doesn't allow (see Window._release_tk)
@@ -63,16 +52,6 @@ def _tinted_icon(master, color: tuple[int, int, int]) -> tk.PhotoImage:
     tinted.save(buf, format="PNG")
     # A plain tk.PhotoImage (not ImageTk) so Window._release_tk frees it on the Tk thread
     return tk.PhotoImage(master=master, data=base64.b64encode(buf.getvalue()))
-
-
-def _calc_similarity_color(percent: float) -> str:
-    """Text color for a similarity score: red (way off) through to green (spot on)."""
-    if percent < 15: return RED
-    elif percent < 30: return ORANGE
-    elif percent < 50: return AMBER
-    elif percent < 75: return LIME
-    else: return GREEN
-
 
 class OverlayWindow(Window):
     """Always-on-top, click-through overlay on a see-through background.
@@ -125,7 +104,7 @@ class OverlayWindow(Window):
         # Translucent dark panel behind the text. A window can either key out one color
         # fully (the text window does that) or fade as a whole (which would fade the text
         # too), so the panel is its own faded window that follows the text window around.
-        self.backdrop = tk.Toplevel(self.root, bg=BACKDROP)
+        self.backdrop = tk.Toplevel(self.root, bg=color_palette.BACKDROP)
         self.backdrop.overrideredirect(True)
         self.backdrop.attributes("-topmost", True)
         self.backdrop.attributes("-alpha", 0.0)  # hidden until on_show() has positioned it
@@ -140,16 +119,16 @@ class OverlayWindow(Window):
         self.render_headers()
 
         self.mic_item = c.create_image(0, 0, image=self.mic_idle_icon, anchor="ne")
-        self.rec_dot = c.create_oval(0, 0, 0, 0, fill=RED, outline=OUTLINE, state="hidden")
-        self.bar_track = c.create_rectangle(0, 0, 0, 0, fill=TRACK, outline=OUTLINE, state="hidden")
-        self.bar_fill = c.create_rectangle(0, 0, 0, 0, fill=GREEN, width=0, state="hidden")
+        self.rec_dot = c.create_oval(0, 0, 0, 0, fill=color_palette.RED, outline=color_palette.OUTLINE, state="hidden")
+        self.bar_track = c.create_rectangle(0, 0, 0, 0, fill=color_palette.TRACK, outline=color_palette.OUTLINE, state="hidden")
+        self.bar_fill = c.create_rectangle(0, 0, 0, 0, fill=color_palette.GREEN, width=0, state="hidden")
         self._layout()
 
     def render_headers(self):
-        self._add_text("header", HEADER_FONT, MUTED)
-        self._add_text("status", STATUS_FONT, MUTED)
-        self._add_text("sentence", SENTENCE_FONT, TEXT, wrap=MAX_TEXT_WIDTH)
-        self._add_text("translation", SMALL_FONT, MUTED, wrap=MAX_TEXT_WIDTH)
+        self._add_text("header", HEADER_FONT, color_palette.MUTED)
+        self._add_text("status", STATUS_FONT, color_palette.MUTED)
+        self._add_text("sentence", SENTENCE_FONT, color_palette.TEXT, wrap=MAX_TEXT_WIDTH)
+        self._add_text("translation", SMALL_FONT, color_palette.MUTED, wrap=MAX_TEXT_WIDTH)
 
     def on_show(self):
         self.place_window_at(WindowPosition.LOWER_CENTER)
@@ -159,7 +138,7 @@ class OverlayWindow(Window):
             # Keep the overlay out of our own screen captures (it sits on top of the focused window)
             exclude_from_capture(handle)
         round_corners(hwnds[1])
-        self.backdrop.attributes("-alpha", BACKDROP_ALPHA)
+        self.backdrop.attributes("-alpha", color_palette.BACKDROP_ALPHA)
         if self._previous_focus and user32.GetForegroundWindow() in hwnds:
             user32.SetForegroundWindow(self._previous_focus)
 
@@ -185,7 +164,8 @@ class OverlayWindow(Window):
         self._layout()
 
     def _set_similarity_percent(self, percent: float):
-        self._set_text("status", f"{percent:.0f}%", _calc_similarity_color(percent))
+        fail_sev = get_fail_severity(percent)
+        self._set_text("status", f"{percent:.0f}%", FAIL_SEVERITY_COLOR[fail_sev])
         self._layout()
 
     def _set_recording(self, recording: bool, duration: float | None):
@@ -206,7 +186,7 @@ class OverlayWindow(Window):
     def _tick(self):
         """Redraw the countdown while recording."""
         left = max(0.0, self._rec_end - time.monotonic())
-        self._set_text("status", f"REC  {left:.0f}s" if self._rec_end > self._rec_start else "REC", GREEN)
+        self._set_text("status", f"REC  {left:.0f}s" if self._rec_end > self._rec_start else "REC", color_palette.GREEN)
         self._layout()
         if left > 0:
             self._tick_id = self.root.after(TICK_MS, self._tick)
@@ -219,7 +199,7 @@ class OverlayWindow(Window):
         """A canvas text with a 1 px dark outline: 8 dark copies around one colored copy."""
         items = []
         for dx, dy in [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1), (0, 0)]:
-            fill = color if (dx, dy) == (0, 0) else OUTLINE
+            fill = color if (dx, dy) == (0, 0) else color_palette.OUTLINE
             item = self.canvas.create_text(0, 0, text="", font=font, fill=fill, width=wrap, justify="center")
             items.append((item, dx, dy))
         self._texts[name] = items
