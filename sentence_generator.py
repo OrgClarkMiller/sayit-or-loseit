@@ -35,15 +35,24 @@ class ScreenTextSentenceContext(ISentenceContext):
 
 # Use gemini api to handle construction of sentences
 class SentenceGenerator:
-    def __init__(self, target_lang: str, proficiency: LanguageProficiency, gemini_api_key: str):
+    def __init__(
+        self,
+        target_lang: str,
+        proficiency: LanguageProficiency,
+        max_words: int,
+        gemini_api_key: str
+    ):
         self._target_lang = target_lang
-        self._client      = genai.Client(api_key=gemini_api_key)
         self._proficiency = proficiency
+        self.max_words    = max_words
+        self._client      = genai.Client(api_key=gemini_api_key)
 
     def _build_prompt(self, sentence_context: ISentenceContext):
         inject = sentence_context.build_prompt_context()
 
-        return f"Build a sentence in {self._target_lang} {inject}. Keep it short and to this proficiency level: {self._proficiency}. Just include the final sentence, no other messages."
+        return f"Build a sentence in {self._target_lang} {inject}. \
+            Keep it to <= {self.max_words} words and to this proficiency level: {self._proficiency}. \
+            Just include the final sentence, no other messages."
 
     # Takes in a string that may be a sentence, may be a description of some objects on screen, may be the capture of all text on screen
     def generate(self, sentence_context: ISentenceContext) -> str | None:

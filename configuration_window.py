@@ -1,11 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
 import config
-from languages import LANGUAGES
+from languages import LANGUAGES, LanguageProficiency
 
 from window import Window, WindowPosition
 
 WIDTH, HEIGHT = 500, 300
+MIN_WORDS, MAX_WORDS, DEFAULT_MAX_WORDS = 1, 500, 15
 
 
 class ConfigurationWindow(Window):
@@ -13,8 +14,10 @@ class ConfigurationWindow(Window):
     saves and closes when the app quits."""
 
     def build(self):
-        conf = config.get_config()
-        self.language = tk.StringVar(self.root, value=conf.get("Language", "target", fallback=""))
+        conf                  = config.get_config()
+        self.lang             = tk.StringVar(self.root, value=conf.get("Language", "target", fallback=""))
+        self.lang_proficiency = tk.StringVar(self.root, value=conf.get("Language", "proficiency", fallback=LanguageProficiency.FRESHY))
+        self.max_words        = tk.IntVar(self.root, value=conf.getint("Sentence", "max_words", fallback=DEFAULT_MAX_WORDS))
         self.on_begin()
         self.render()
 
@@ -34,13 +37,39 @@ class ConfigurationWindow(Window):
         header = tk.Label(self.root, text="Configuration", font=("Segoe UI", 12, "bold"))
         header.grid(row=0, column=0, columnspan=2, pady=(10, 15))
         self.render_lang_combo(row=1)
+        self.render_proficiency_combo(row=2)
+        self.render_max_words(row=3)
 
     def render_lang_combo(self, row):
-        tk.Label(self.root, text="Target language:")\
+        tk.Label(self.root, text="Target Language:")\
             .grid(row=row, column=0, sticky="w", padx=(10, 5), pady=5)
 
-        ttk.Combobox(self.root, textvariable=self.language, values=LANGUAGES, state="readonly")\
+        ttk.Combobox(self.root, textvariable=self.lang, values=LANGUAGES, state="readonly")\
             .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
+
+    def render_proficiency_combo(self, row):
+        tk.Label(self.root, text="Target Language Proficiency:")\
+            .grid(row=row, column=0, sticky="w", padx=(10, 5), pady=5)
+
+        ttk.Combobox(self.root, textvariable=self.lang_proficiency, values=[level.value for level in LanguageProficiency], state="readonly")\
+            .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
+
+    def render_max_words(self, row):
+        tk.Label(self.root, text="Maximum Word Count:")\
+            .grid(row=row, column=0, sticky="w", padx=(10, 5), pady=5)
+
+        # Only allow digits to be typed (the empty string lets the user clear the box while editing)
+        digits_only = (self.root.register(lambda text: text == "" or text.isdigit()), "%P")
+        ttk.Spinbox(self.root, textvariable=self.max_words, from_=MIN_WORDS, to=MAX_WORDS, increment=1,
+                    validate="key", validatecommand=digits_only)            .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
+
+    def get_max_words(self) -> int:
+        """The entered word count, clamped to the allowed range (default if the box is empty)."""
+        try:
+            value = self.max_words.get()
+        except tk.TclError:  # box left empty
+            return DEFAULT_MAX_WORDS
+        return max(MIN_WORDS, min(MAX_WORDS, value))
 
     def on_begin(self):
        pass
@@ -49,5 +78,9 @@ class ConfigurationWindow(Window):
         print("Closing Config Window")
         # Save any configuration
         conf = config.get_config()
-        conf["Language"]["target"] = self.language.get()
+        conf["Language"]["target"] = self.lang.get()
+        conf["Language"]["proficiency"] = self.lang_proficiency.get()
+        if not conf.has_section("Sentence"):
+            conf.add_section("Sentence")
+        conf["Sentence"]["max_words"] = str(self.get_max_words())
         super().on_close()  # destroys the root
