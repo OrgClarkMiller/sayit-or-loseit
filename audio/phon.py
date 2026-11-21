@@ -42,6 +42,36 @@ def generate(source: str | np.ndarray, target_language: str) -> list[str]:
 def speak_duration_estimate(phon: list[str], proficiency: str) -> float:
     return len(phon) * SECONDS_PER_PHONEME[proficiency] + RECORD_PADDING
 
+def similarity(expected: list[str], actual: list[str]) -> float:
+    """How close the phonemes heard were to the expected ones, as a percentage (0-100).
+
+    e.g. similarity(['h', 'ə', 'l', 'oʊ'], ['h', 'ɛ', 'l', 'oʊ']) -> 80.0
+
+    Compares symbol by symbol rather than phone by phone, so espeak and the recognizer
+    splitting sounds differently ('ɑːɹ' vs 'ɑː', 'ɹ') isn't an error, and a near miss like
+    'ɜ' for 'ɜː' only costs the missing length mark.
+    """
+    exp = "".join(expected)
+    act = "".join(actual)
+    if not exp:
+        return 100.0 if not act else 0.0
+
+    # 100% = identical; each edit needed to turn what was said into what was expected costs
+    # 1/len(expected). Extra sounds count too, so long babble can't score well.
+    return max(0.0, 1 - _edit_distance(exp, act) / len(exp)) * 100
+
+def _edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance: fewest insertions, deletions and substitutions turning a into b."""
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1,                 # delete ca
+                           cur[j - 1] + 1,              # insert cb
+                           prev[j - 1] + (ca != cb)))   # substitute (free if equal)
+        prev = cur
+    return prev[-1]
+
 def _flatten(word_phonemes: list[list[str]]) -> list[str]:
     return [p for word in word_phonemes for p in word]
 

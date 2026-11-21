@@ -115,6 +115,7 @@ class AppContext:
 
         print(sent_phon)
         print(resp_phon)
+        print(phon.similarity(sent_phon, resp_phon))
 
         # TODO: Handle mic input, compare against sentence audio file
 
