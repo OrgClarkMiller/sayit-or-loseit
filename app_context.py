@@ -7,13 +7,20 @@ from configuration_window import ConfigurationWindow
 import config
 from sentence_context_factory import sentence_context_factory, ContextKind
 import time
+from audio import phon
+
+DEBUG_PHONETICS = False
+
+if DEBUG_PHONETICS:
+    from audio import speaking
+
 
 # Holds refs to all essential components such as
 #the tray, the different windows and things
 #like stop events to make all windows and such
 #close out properly
 
-CONTEXT_READ_DELAY = 15
+CONTEXT_READ_DELAY = 10
 
 # Mediator Class (child components talk to this to do things like program shutdown)
 class AppContext:
@@ -25,12 +32,21 @@ class AppContext:
 
         # Windows run on their own threads (started by .start()) and close on stop_event.
         # Their public methods are thread-safe, e.g. ctx.overlay.set_text("hi") from anywhere.
-        self.overlay = OverlayWindow(self.stop_event)  # open for the app's whole lifetime
+        self.overlay = OverlayWindow(self)  # open for the app's whole lifetime
 
         # The config window can be opened and closed repeatedly; a fresh one is made each time.
         self._windows_lock = threading.Lock()  # launches can come from the tray or worker thread
         self.config_window = None
 
+        self.apply_config()
+        self._init_backends()
+
+    def apply_config(self):
+        """Push the current config into long-lived components. Call after config changes.
+
+        Swaps in a whole new generator rather than editing the old one, so the worker
+        thread sees either the old settings or the new ones, never a mix.
+        """
         conf = config.get_config()
         self.generator = SentenceGenerator(
             target_lang=conf.get("Language", "target", fallback="Russian"),
@@ -38,6 +54,22 @@ class AppContext:
             max_words=conf.getint("Sentence", "max_words", fallback=10),
             gemini_api_key=conf["AI"]["gemini_key"]
         )
+
+    def on_change_target_language(self):
+        print('on_change_target_language')
+        # Initialize the backend rightaway since it takes a long time
+        target_lang = config.get_config().get("Language", 'target', fallback=None)
+        if target_lang is not None:
+            print(f"Initializing {target_lang}'s phonetic backend")
+            phon.init_lang(target_lang)
+            print(f"Finished initializing {target_lang}'s phonetic backend")
+
+    def _init_backends(self):
+        self.on_change_target_language()
+        phon.init_model()
+
+        if DEBUG_PHONETICS:
+            speaking.load_voice()
 
     def start(self):
         self.overlay.start()
@@ -59,7 +91,7 @@ class AppContext:
         with self._windows_lock:
             if self.config_window is not None and self.config_window.is_alive():
                 return
-            self.config_window = ConfigurationWindow(self.stop_event)
+            self.config_window = ConfigurationWindow(self)
             self.config_window.start()
 
     # Output sentence in target language to overlay window
@@ -69,8 +101,11 @@ class AppContext:
             return
         sentence = self.generator.generate(s_ctx)
         self.overlay.set_text(sentence)
-
+        sent_phon = phon.generate(sentence, config.get_config()['Language']['target'])
         # TODO: Handle mic input, compare against sentence audio file
+
+        if DEBUG_PHONETICS:
+            speaking.speak(sent_phon)
 
 
     # The main work being done by the worker thread
@@ -87,6 +122,7 @@ class AppContext:
             now = time.perf_counter()
             if now - prev_read_time > CONTEXT_READ_DELAY:
                 self._output_sentence()
+                prev_read_time = now
             # Like sleep(1), but returns immediately when stop_event is set,
             # so Quit doesn't have to wait for the sleep to finish.
             self.stop_event.wait(1)

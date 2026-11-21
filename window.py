@@ -6,7 +6,13 @@ import traceback
 from abc import ABC, abstractmethod
 from ctypes import wintypes
 from enum import Enum
+from typing import TYPE_CHECKING
 import tkinter as tk
+
+# Forward ref for app context: app_context imports the windows, so importing it for real
+# here would be circular. Type checkers see it; at runtime the annotation stays a string.
+if TYPE_CHECKING:
+    from app_context import AppContext
 
 MARGIN = 8  # gap between the window and the screen edge / taskbar
 POLL_MS = 50  # how often the Tk thread checks for queued calls and close requests
@@ -40,7 +46,6 @@ class WindowPosition(Enum):
     BOTTOM = (0.5, 1.0)
     BOTTOM_RIGHT = (1.0, 1.0)
 
-
 class Window(ABC):
     """A Tk window that runs on its own thread and can be driven from any thread.
 
@@ -54,11 +59,11 @@ class Window(ABC):
     runs on the Tk thread.
     """
 
-    def __init__(self, stop_event: threading.Event | None = None):
+    def __init__(self, app_context: "AppContext"):
         self.root: tk.Tk | None = None
-        self._stop_event = stop_event       # optional app-wide event that also closes the window
-        self._close_event = threading.Event()
-        self._calls = queue.Queue()
+        self._app_context       = app_context       # the window also closes when its stop_event is set
+        self._close_event       = threading.Event()
+        self._calls             = queue.Queue()
         self._thread: threading.Thread | None = None
 
     # ---- Thread-safe API: call these from any thread ----
@@ -104,7 +109,7 @@ class Window(ABC):
     # ---- Internals ----
 
     def _should_close(self):
-        return self._close_event.is_set() or (self._stop_event is not None and self._stop_event.is_set())
+        return self._close_event.is_set() or self._app_context.stop_event.is_set()
 
     def _run(self):
         try:

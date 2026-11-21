@@ -13,7 +13,7 @@ class OverlayWindow(Window):
     """Always-on-top, click-through text overlay.
 
     Construct it, then start(). Its public methods are safe to call from any thread.
-    Pass the app's stop_event so it closes when the app does.
+    It closes when the app's stop_event is set.
     """
 
     # ---- Thread-safe API ----

@@ -74,6 +74,7 @@ class SentenceGenerator:
     def generate(self, sentence_context: ISentenceContext) -> str | None:
         try:
             prompt, image = self._build_prompt(sentence_context)
+            print(prompt)
 
             input = None
 

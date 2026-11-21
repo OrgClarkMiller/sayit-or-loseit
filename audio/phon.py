@@ -28,14 +28,23 @@ def _model():
     model = AutoModelForCTC.from_pretrained(MODEL_ID).eval()
     return processor, model
 
-def speak(sentence: str, lng_short: str, wav_path: str | None = None):
-    args = [ESPEAK, "-v", lng_short, "-s", "140", sentence]  # -s = words per minute
-    if wav_path:
-        args[1:1] = ["-w", wav_path]  # save to a file instead of playing
-    subprocess.run(args, check=True)
+def init_lang(lang: str): _backend(LANGUAGE_SHORT_FORM[lang])
 
+def init_model(): _model()
 
-def phonemize_audio(audio: np.ndarray) -> list[str]:
+def _flatten(word_phonemes: list[list[str]]) -> list[str]:
+    return [p for word in word_phonemes for p in word]
+
+def _generate_from_sentence(sentence: str, target_language: str) -> list[str]:
+    # Throws if unsupported language is entered
+    lng_short = LANGUAGE_SHORT_FORM[target_language]
+
+    phonemized = _backend(lng_short).phonemize([sentence], separator=_SEPARATOR, strip=True)[0]
+
+    res = [word.split() for word in phonemized.split(_WORD_SEP) if word.strip()]
+    return _flatten(res)
+
+def _generate_from_audio(audio: np.ndarray) -> list[str]:
     """16 kHz mono float32 audio -> phonemes heard, e.g. ['h', 'ə', 'l', 'oʊ', 'w', 'ɜː', 'l', 'd']"""
     processor, model = _model()
     inputs = processor(audio, sampling_rate=SAMPLE_RATE, return_tensors="pt")
@@ -44,15 +53,7 @@ def phonemize_audio(audio: np.ndarray) -> list[str]:
     ids = torch.argmax(logits, dim=-1)
     return processor.batch_decode(ids)[0].split()
 
-def generate(sentence: str, target_language: str) -> list[list[str]]:
-    """Expected phonemes for a sentence, one list per word.
-
-    e.g. generate("Hello world", "English") -> [['h', 'ə', 'l', 'oʊ'], ['w', 'ɜː', 'l', 'd']]
-    Flatten it to compare against a phoneme recognizer's output.
-    """
-    # Throws if unsupported language is entered
-    lng_short = LANGUAGE_SHORT_FORM[target_language]
-
-    phonemized = _backend(lng_short).phonemize([sentence], separator=_SEPARATOR, strip=True)[0]
-
-    return [word.split() for word in phonemized.split(_WORD_SEP) if word.strip()]
+def generate(source: str | np.ndarray, target_language: str) -> list[str]:
+    if isinstance(source, str): return _generate_from_sentence(source, target_language)
+    elif isinstance(source, np.ndarray): return _generate_from_audio(source)
+    raise ValueError('Invalid source type')

@@ -1,3 +1,4 @@
+from configparser import ConfigParser
 import tkinter as tk
 from tkinter import ttk
 import config
@@ -8,10 +9,9 @@ from window import Window, WindowPosition
 WIDTH, HEIGHT = 500, 300
 MIN_WORDS, MAX_WORDS, DEFAULT_MAX_WORDS = 1, 500, 15
 
-
 class ConfigurationWindow(Window):
-    """Settings window. Construct it, then start(). Pass the app's stop_event so it
-    saves and closes when the app quits."""
+    """Settings window. Construct it, then start(). It saves and closes when the
+    app's stop_event is set."""
 
     def build(self):
         conf                  = config.get_config()
@@ -91,11 +91,18 @@ class ConfigurationWindow(Window):
     def on_begin(self):
        pass
 
+    def update_lang_conf(self, conf: ConfigParser):
+        old = conf.get("Language", "target")
+        if old == self.lang.get(): return
+
+        conf["Language"]["target"] = self.lang.get()
+        self._app_context.on_change_target_language()
+
     def on_close(self):
         print("Closing Config Window")
         # Save any configuration
         conf = config.get_config()
-        conf["Language"]["target"] = self.lang.get()
+        self.update_lang_conf(conf)
         conf["Language"]["proficiency"] = self.lang_proficiency.get()
         if not conf.has_section("Sentence"):
             conf.add_section("Sentence")
@@ -103,4 +110,5 @@ class ConfigurationWindow(Window):
         if not conf.has_section("AI"):
             conf.add_section("AI")
         conf["AI"]["gemini_key"] = self.gemini_key.get().strip()  # pasted keys often carry stray whitespace
+        self._app_context.apply_config()  # the generator copies its settings, so hand it the new ones
         super().on_close()  # destroys the root
