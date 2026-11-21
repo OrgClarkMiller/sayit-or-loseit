@@ -1,11 +1,12 @@
 import base64
+import ctypes
 import io
 import time
 from pathlib import Path
 import tkinter as tk
 
 from PIL import Image
-from window import Window, WindowPosition
+from window import MARGIN, Window, WindowPosition
 from screen_io.screen_capture import exclude_from_capture, user32
 
 # Win32 extended window styles
@@ -23,6 +24,8 @@ TRANSPARENT = "#010101"
 TRANSPARENT_RGB = (1, 1, 1)
 
 # ---- Design spec (docs/overlay-mockup.pdf) ----
+BACKDROP  = "#18181b"  # translucent panel behind the text
+BACKDROP_ALPHA = 0.75  # 0 = invisible, 1 = solid
 TEXT      = "#fafafa"  # sentence, primary text
 MUTED     = "#d4d4d8"  # header label, translation (lighter than the spec: it sits inside a dark outline)
 TRACK     = "#3f3f46"  # empty part of the countdown bar
@@ -125,6 +128,15 @@ class OverlayWindow(Window):
         self._recording = False
         self._rec_start = self._rec_end = 0.0
         self._tick_id: str | None = None
+
+        # Translucent dark panel behind the text. A window can either key out one color
+        # fully (the text window does that) or fade as a whole (which would fade the text
+        # too), so the panel is its own faded window that follows the text window around.
+        self.backdrop = tk.Toplevel(self.root, bg=BACKDROP)
+        self.backdrop.overrideredirect(True)
+        self.backdrop.attributes("-topmost", True)
+        self.backdrop.attributes("-alpha", 0.0)  # hidden until on_show() has positioned it
+
         self.render()
 
     def render(self):
@@ -145,12 +157,23 @@ class OverlayWindow(Window):
 
     def on_show(self):
         self.place_window_at(WindowPosition.LOWER_CENTER)
-        self.make_click_through()
-        # Keep the overlay out of our own screen captures (it sits on top of the focused window)
-        hwnd = user32.GetParent(self.root.winfo_id())
-        exclude_from_capture(hwnd)
-        if self._previous_focus and user32.GetForegroundWindow() == hwnd:
+        hwnds = [_hwnd(self.root), _hwnd(self.backdrop)]
+        for hwnd in hwnds:
+            _make_click_through(hwnd)
+            # Keep the overlay out of our own screen captures (it sits on top of the focused window)
+            exclude_from_capture(hwnd)
+        _round_corners(hwnds[1])
+        self.backdrop.attributes("-alpha", BACKDROP_ALPHA)
+        if self._previous_focus and user32.GetForegroundWindow() in hwnds:
             user32.SetForegroundWindow(self._previous_focus)
+
+    def place_window_at(self, position: WindowPosition, margin: int = MARGIN):
+        super().place_window_at(position, margin)
+        # Keep the panel exactly behind the text window
+        self.root.update_idletasks()
+        self.backdrop.geometry(f"{self.root.winfo_width()}x{self.root.winfo_height()}"
+                               f"+{self.root.winfo_x()}+{self.root.winfo_y()}")
+        self.root.lift()  # text above the panel
 
     def _set_language_label(self, language: str, level: str):
         self._set_text("header", f"{language.upper()}  ·  {level}")
@@ -291,11 +314,28 @@ class OverlayWindow(Window):
         root.attributes("-topmost", True)  # usually wanted for an overlay
         return root
 
-    def make_click_through(self):
-        """Let all mouse input pass through the overlay to the windows below (Windows only)."""
-        self.root.update_idletasks()  # make sure the native window exists
-        # winfo_id() is Tk's inner client window; its parent is the real top-level window.
-        hwnd = user32.GetParent(self.root.winfo_id())
-        style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
-        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+
+
+def _hwnd(window: tk.Misc) -> int:
+    """The real top-level Win32 window of a Tk root or Toplevel."""
+    window.update_idletasks()  # make sure the native window exists
+    # winfo_id() is Tk's inner client window; its parent is the real top-level window.
+    return user32.GetParent(window.winfo_id())
+
+
+def _make_click_through(hwnd: int):
+    """Let all mouse input pass through the window to the windows below (Windows only)."""
+    style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+    user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+
+
+def _round_corners(hwnd: int):
+    """Ask Windows 11 to round the window's corners. Does nothing on Windows 10."""
+    DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
+    try:
+        pref = ctypes.c_int(DWMWCP_ROUND)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                                   ctypes.byref(pref), ctypes.sizeof(pref))
+    except (AttributeError, OSError):
+        pass

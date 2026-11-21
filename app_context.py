@@ -105,7 +105,7 @@ class AppContext:
         target_lang = conf['Language']['target']
         proficieny = conf['Language']['proficiency']
 
-        self.overlay.set_language_label(target_lang, proficiency)  # new: fills the header
+        self.overlay.set_language_label(target_lang, proficieny)  # new: fills the header
         self.overlay.set_source_lang_sentence(gen.source_lang)
         self.overlay.set_target_lang_sentence(gen.target_lang)
 
