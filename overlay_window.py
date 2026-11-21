@@ -1,7 +1,6 @@
-import ctypes
 import tkinter as tk
 from window import Window, WindowPosition
-from screen_capture import exclude_from_capture, user32
+from screen_io.screen_capture import exclude_from_capture, user32
 
 # Win32 extended window styles
 GWL_EXSTYLE = -20

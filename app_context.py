@@ -64,7 +64,9 @@ class AppContext:
 
     # Output sentence in target language to overlay window
     def _output_sentence(self):
-        s_ctx = sentence_context_factory(ContextKind.SCREEN_TEXT)
+        s_ctx = sentence_context_factory(ContextKind.SCREEN_IMAGE)
+        if s_ctx is None:
+            return
         sentence = self.generator.generate(s_ctx)
         self.overlay.set_text(sentence)
 

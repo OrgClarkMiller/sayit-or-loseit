@@ -2,7 +2,7 @@
 # too often by the User
 
 import pytesseract
-from screen_capture import capture_focused_window
+from screen_io.screen_capture import capture_focused_window
 
 def read_screen_text():
     wnd = capture_focused_window()
