@@ -6,8 +6,8 @@ from screen_capture import capture_focused_window
 
 def read_screen_text():
     wnd = capture_focused_window()
+    if wnd is None: return []
     img = wnd.image
-
     if img is None: return []
 
     gray_image = img.convert("L")
