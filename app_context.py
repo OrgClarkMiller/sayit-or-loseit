@@ -96,6 +96,13 @@ class AppContext:
             self.overlay = OverlayWindow(self)
             self.overlay.start()  # a window only appears once started
 
+    def _challenge_still_wanted(self) -> bool:
+        """False once the user quits or turns challenges off. A round takes a while (Gemini,
+        playback, recording), so it checks this between steps and stops early if so."""
+        if self.stop_event.is_set():
+            return False
+        return config.get_config().getboolean('Challenge', 'is_active')
+
     def _run_challenge(self):
         print('_run_challenge()')
         conf = config.get_config()
@@ -105,6 +112,8 @@ class AppContext:
             return
         # 1. Generate Sentence and phonetics
         gen = self.generator.generate(s_ctx)
+        if not self._challenge_still_wanted():  # the Gemini call can take a few seconds
+            return
 
         target_lang = conf['Language']['target']
         proficieny = conf['Language']['proficiency']
@@ -117,6 +126,8 @@ class AppContext:
 
         if conf.getboolean("Challenge", "playback"):
             speaking.speak(sent_phon)
+            if not self._challenge_still_wanted():  # don't start recording if they turned it off mid-playback
+                return
 
         est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
 
@@ -124,13 +135,15 @@ class AppContext:
         self.overlay.set_recording(True, est_dur)
         wav = recording.record(est_dur)
         self.overlay.set_recording(False)
+        if not self._challenge_still_wanted():  # turned off while recording: no score, no punishment
+            return
         resp_phon = phon.generate(wav, target_lang)
 
         percent_similar = phon.similarity(sent_phon, resp_phon)
         self.overlay.set_similarity_percent(percent_similar)
 
         fail_severity = get_fail_severity(percent_similar)
-        pun = punishment_factory('TODO: FIND ACTUAL PROCESS NAME', fail_severity)
+        pun = punishment_factory(fail_severity)
         pun.punish()
 
         if DEBUG_PHONETICS:
@@ -138,9 +151,7 @@ class AppContext:
 
     # The main work being done by the worker thread
     def worker(self):
-        # Handle reading the microphone, processing the context to build sentences, etc...# s_ctx = sentence_context_factory(ContextKind.SCREEN_TEXT)
-
-        prev_read_time = time.perf_counter()
+        prev_read_time = None
 
         """Worker loop: runs until the user clicks Quit in the tray."""
         while not self.stop_event.is_set():
@@ -156,7 +167,7 @@ class AppContext:
 
                 # Run challenge logic
                 now = time.perf_counter()
-                if now - prev_read_time > CONTEXT_READ_DELAY:
+                if (prev_read_time is None) or (now - prev_read_time > CONTEXT_READ_DELAY):
                     self._run_challenge()
                     prev_read_time = now
 

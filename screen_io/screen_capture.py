@@ -25,7 +25,6 @@ class WindowCapture:
     bbox: tuple[int, int, int, int]  # (left, top, right, bottom) in physical screen pixels
     image: Image.Image
 
-
 def capture_focused_window(include_own_windows: bool = False) -> WindowCapture | None:
     """Screenshot of the window that currently has focus.
 
