@@ -15,6 +15,7 @@ class ConfigurationWindow(Window):
 
     def build(self):
         conf                  = config.get_config()
+        self.gemini_key       = tk.StringVar(self.root, value=conf.get("AI", "gemini_key", fallback=""))
         self.lang             = tk.StringVar(self.root, value=conf.get("Language", "target", fallback=""))
         self.lang_proficiency = tk.StringVar(self.root, value=conf.get("Language", "proficiency", fallback=LanguageProficiency.FRESHY))
         self.max_words        = tk.IntVar(self.root, value=conf.getint("Sentence", "max_words", fallback=DEFAULT_MAX_WORDS))
@@ -39,29 +40,45 @@ class ConfigurationWindow(Window):
         self.render_lang_combo(row=1)
         self.render_proficiency_combo(row=2)
         self.render_max_words(row=3)
+        self.render_gemini_key(row=4)
 
     def render_lang_combo(self, row):
-        tk.Label(self.root, text="Target Language:")\
-            .grid(row=row, column=0, sticky="w", padx=(10, 5), pady=5)
-
+        self.render_input_label(row, "Target Language:")
         ttk.Combobox(self.root, textvariable=self.lang, values=LANGUAGES, state="readonly")\
             .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
 
     def render_proficiency_combo(self, row):
-        tk.Label(self.root, text="Target Language Proficiency:")\
-            .grid(row=row, column=0, sticky="w", padx=(10, 5), pady=5)
-
+        self.render_input_label(row, "Target Language Proficiency:")
         ttk.Combobox(self.root, textvariable=self.lang_proficiency, values=[level.value for level in LanguageProficiency], state="readonly")\
             .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
 
     def render_max_words(self, row):
-        tk.Label(self.root, text="Maximum Word Count:")\
-            .grid(row=row, column=0, sticky="w", padx=(10, 5), pady=5)
-
+        self.render_input_label(row, "Maximum Word Count:")
         # Only allow digits to be typed (the empty string lets the user clear the box while editing)
         digits_only = (self.root.register(lambda text: text == "" or text.isdigit()), "%P")
         ttk.Spinbox(self.root, textvariable=self.max_words, from_=MIN_WORDS, to=MAX_WORDS, increment=1,
-                    validate="key", validatecommand=digits_only)            .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
+                    validate="key", validatecommand=digits_only)\
+            .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
+
+    def render_gemini_key(self, row):
+        self.render_input_label(row, "Gemini API Key:")
+
+        # Entry + "Show" toggle share column 1
+        frame = ttk.Frame(self.root)
+        frame.grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
+        frame.columnconfigure(0, weight=1)
+
+        entry = ttk.Entry(frame, textvariable=self.gemini_key, show="•")  # masked by default
+        entry.grid(row=0, column=0, sticky="ew")
+
+        show_key = tk.BooleanVar(self.root, value=False)
+        ttk.Checkbutton(frame, text="Show", variable=show_key,
+                        command=lambda: entry.config(show="" if show_key.get() else "•"))\
+            .grid(row=0, column=1, padx=(5, 0))
+
+    def render_input_label(self, row, text):
+            tk.Label(self.root, text=text)\
+                .grid(row=row, column=0, sticky="w", padx=(10, 5), pady=5)
 
     def get_max_words(self) -> int:
         """The entered word count, clamped to the allowed range (default if the box is empty)."""
@@ -83,4 +100,7 @@ class ConfigurationWindow(Window):
         if not conf.has_section("Sentence"):
             conf.add_section("Sentence")
         conf["Sentence"]["max_words"] = str(self.get_max_words())
+        if not conf.has_section("AI"):
+            conf.add_section("AI")
+        conf["AI"]["gemini_key"] = self.gemini_key.get().strip()  # pasted keys often carry stray whitespace
         super().on_close()  # destroys the root

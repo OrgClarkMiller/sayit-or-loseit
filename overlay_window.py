@@ -1,6 +1,7 @@
 import ctypes
 import tkinter as tk
 from window import Window, WindowPosition
+from screen_capture import exclude_from_capture, user32
 
 # Win32 extended window styles
 GWL_EXSTYLE = -20
@@ -30,12 +31,20 @@ class OverlayWindow(Window):
     def on_show(self):
         self.place_window_at(WindowPosition.LOWER_CENTER)
         self.make_click_through()
+        # Keep the overlay out of our own screen captures (it sits on top of the focused window)
+        hwnd = user32.GetParent(self.root.winfo_id())
+        exclude_from_capture(hwnd)
+        if self._previous_focus and user32.GetForegroundWindow() == hwnd:
+            user32.SetForegroundWindow(self._previous_focus)
 
     def _set_text(self, text):
         self.text.set(text)
         self.place_window_at(WindowPosition.LOWER_CENTER)  # re-fit and re-center for the new length
 
     def create_root(self):
+        # Tk activates a window when it first appears, before WS_EX_NOACTIVATE can be set.
+        # Remember who had focus so on_show() can hand it back.
+        self._previous_focus = user32.GetForegroundWindow()
         root = tk.Tk()
         root.title("Say it or Lose it — Overlay")
         root.resizable(False, False)
@@ -57,7 +66,6 @@ class OverlayWindow(Window):
     def make_click_through(self):
         """Let all mouse input pass through the overlay to the windows below (Windows only)."""
         self.root.update_idletasks()  # make sure the native window exists
-        user32 = ctypes.windll.user32
         # winfo_id() is Tk's inner client window; its parent is the real top-level window.
         hwnd = user32.GetParent(self.root.winfo_id())
         style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
