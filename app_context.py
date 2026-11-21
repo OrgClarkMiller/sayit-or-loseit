@@ -1,4 +1,3 @@
-from configparser import ConfigParser
 import threading
 from languages import LanguageProficiency
 from sentence_generation.sentence_generator import SentenceGenerator
@@ -10,13 +9,13 @@ import time
 from audio import phon, recording, speaking
 
 DEBUG_PHONETICS = False
+CONTEXT_READ_DELAY = 10
+
 
 # Holds refs to all essential components such as
 #the tray, the different windows and things
 #like stop events to make all windows and such
 #close out properly
-
-CONTEXT_READ_DELAY = 10
 
 # Mediator Class (child components talk to this to do things like program shutdown)
 class AppContext:
@@ -28,7 +27,8 @@ class AppContext:
 
         # Windows run on their own threads (started by .start()) and close on stop_event.
         # Their public methods are thread-safe, e.g. ctx.overlay.set_text("hi") from anywhere.
-        self.overlay = OverlayWindow(self)  # open for the app's whole lifetime
+        self.overlay = None
+        self._update_overlay(config.get_config().getboolean('Challenge', 'is_active', fallback=False)) # Show the overlay
 
         # The config window can be opened and closed repeatedly; a fresh one is made each time.
         self._windows_lock = threading.Lock()  # launches can come from the tray or worker thread
@@ -59,23 +59,23 @@ class AppContext:
         if target_lang is not None:
             print(f"Initializing {target_lang}'s phonetic backend")
             phon.init_lang(target_lang)
-            speaking.load_voice()
+            speaking.load_voice(target_lang)  # the target language's voice, not the English default
             print(f"Finished initializing {target_lang}'s phonetic backend")
-
 
     def _init_backends(self):
         self.on_change_target_language()
         phon.init_model()
 
     def start(self):
-        self.overlay.start()
+        # The overlay isn't started here: _update_overlay starts it whenever it creates one
         self.tray_thread.start()
         self.worker_thread.start()
 
     def join(self):
         self.tray_thread.join()
         self.worker_thread.join()
-        self.overlay.join()
+        if self.overlay is not None:
+            self.overlay.join()
         if self.config_window is not None:
             self.config_window.join()  # let it save its settings before main.py writes them
 
@@ -90,21 +90,17 @@ class AppContext:
             self.config_window = ConfigurationWindow(self)
             self.config_window.start()
 
-    def _update_overlay(self, show) -> bool:
-        conf = config.get_config()
-        if not conf.getboolean('Challenge', 'is_active'):
-            # TODO: HIDE WINDOW INSTEAD
-            self.overlay.make_default()
-
+    def _update_overlay(self, show):
+        print('Updating overlay')
+        if not show and self.overlay is not None:
+            self.overlay.close()
+            self.overlay = None # Delete Overlay
+        elif show and self.overlay is None:
+            self.overlay = OverlayWindow(self)
+            self.overlay.start()  # a window only appears once started
 
     def _run_challenge(self):
         conf = config.get_config()
-        is_active = conf.getboolean('Challenge', 'is_active')
-        if not is_active:
-            self._update_overlay(False)
-            return # Early return, don't run the challenge logic
-        else:
-            self._update_overlay(True)
 
         s_ctx = sentence_context_factory(ContextKind.SCREEN_IMAGE)
         if s_ctx is None:
@@ -135,8 +131,6 @@ class AppContext:
         self.overlay.set_similarity_percent(percent_close)
 
         if DEBUG_PHONETICS:
-            speaking.speak(sent_phon)
-            time.sleep(0.5)
             speaking.speak(resp_phon)
 
     # The main work being done by the worker thread
@@ -150,10 +144,19 @@ class AppContext:
             # TODO: poll / handle system events here
             print("checking for events...")
 
-            now = time.perf_counter()
-            if now - prev_read_time > CONTEXT_READ_DELAY:
-                self._run_challenge()
-                prev_read_time = now
+            conf = config.get_config()
+            is_active = conf.getboolean('Challenge', 'is_active', fallback=False)
+            if not is_active:
+                self._update_overlay(False)
+            else:
+                self._update_overlay(True)
+
+                # Run challenge logic
+                now = time.perf_counter()
+                if now - prev_read_time > CONTEXT_READ_DELAY:
+                    self._run_challenge()
+                    prev_read_time = now
+
             # Like sleep(1), but returns immediately when stop_event is set,
             # so Quit doesn't have to wait for the sleep to finish.
             self.stop_event.wait(1)

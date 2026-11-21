@@ -1,18 +1,25 @@
 from functools import lru_cache
-import numpy as np
+import json
+from pathlib import Path
 
+import numpy as np
+import onnxruntime as ort
 from phonemizer.backend import EspeakBackend
 from phonemizer.separator import Separator
-from transformers import AutoModelForCTC, AutoProcessor
-import torch
 
 from languages import LANGUAGE_SHORT_FORM, LanguageProficiency, SECONDS_PER_PHONEME
 
 _WORD_SEP = "|"
 _SEPARATOR = Separator(phone=" ", word=_WORD_SEP)
 
-MODEL_ID = "facebook/wav2vec2-lv-60-espeak-cv-ft"
+# facebook/wav2vec2-lv-60-espeak-cv-ft, exported to ONNX. Run with onnxruntime (already a
+# Piper dependency) instead of torch + transformers, which took ~20 s just to import.
+MODEL_REPO = "onnx-community/wav2vec2-lv-60-espeak-cv-ft-ONNX"
+MODEL_FILE = "onnx/model.onnx"  # full precision: int8 was slower on CPU and misheard sounds
+VOCAB_FILE = "vocab.json"
+MODEL_DIR = Path(__file__).parent.parent / "assets" / "phoneme-model"  # audio/ -> project root
 SAMPLE_RATE = 16_000  # the model only understands 16 kHz mono audio
+_SPECIAL_TOKENS = {"<pad>", "<s>", "</s>", "<unk>"}
 
 @lru_cache(maxsize=None)
 def _backend(lng_short: str) -> EspeakBackend:
@@ -21,12 +28,21 @@ def _backend(lng_short: str) -> EspeakBackend:
     # and they'd show up as mismatches when comparing.
     return EspeakBackend(lng_short, preserve_punctuation=False, with_stress=False)
 
+def download_model():
+    """Fetch the model into MODEL_DIR if it isn't there yet (~1.3 GB, first run only)."""
+    if (MODEL_DIR / MODEL_FILE).exists() and (MODEL_DIR / VOCAB_FILE).exists():
+        return
+    from huggingface_hub import hf_hub_download  # only needed for the one-off download
+    for name in (MODEL_FILE, VOCAB_FILE):
+        hf_hub_download(MODEL_REPO, name, local_dir=MODEL_DIR)
+
 @lru_cache(maxsize=1)
-def _model():
-    # Slow to load (~1.2 GB download on first run), so do it once
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    model = AutoModelForCTC.from_pretrained(MODEL_ID).eval()
-    return processor, model
+def _model() -> tuple[ort.InferenceSession, dict[int, str]]:
+    # Slow to load, so do it once
+    download_model()
+    session = ort.InferenceSession(str(MODEL_DIR / MODEL_FILE), providers=["CPUExecutionProvider"])
+    vocab = json.loads((MODEL_DIR / VOCAB_FILE).read_text(encoding="utf-8"))
+    return session, {i: token for token, i in vocab.items()}
 
 RECORD_PADDING = 1.5        # reaction time before speaking + trailing silence
 
@@ -86,9 +102,20 @@ def _generate_from_sentence(sentence: str, target_language: str) -> list[str]:
 
 def _generate_from_audio(audio: np.ndarray) -> list[str]:
     """16 kHz mono float32 audio -> phonemes heard, e.g. ['h', 'ə', 'l', 'oʊ', 'w', 'ɜː', 'l', 'd']"""
-    processor, model = _model()
-    inputs = processor(audio, sampling_rate=SAMPLE_RATE, return_tensors="pt")
-    with torch.no_grad():
-        logits = model(inputs.input_values).logits
-    ids = torch.argmax(logits, dim=-1)
-    return processor.batch_decode(ids)[0].split()
+    if len(audio) < SAMPLE_RATE // 10:  # under 0.1 s: too short for the model to run on
+        return []
+    session, id_to_token = _model()
+
+    # Same preprocessing as the model's feature extractor: zero mean, unit variance
+    audio = audio.astype(np.float32)
+    x = (audio - audio.mean()) / np.sqrt(audio.var() + 1e-7)
+    logits = session.run(None, {session.get_inputs()[0].name: x[None, :]})[0][0]  # (frames, vocab)
+
+    # CTC greedy decoding: best token per frame, merge repeats, drop padding/special tokens
+    phonemes, prev = [], None
+    for i in logits.argmax(axis=-1):
+        token = id_to_token[int(i)]
+        if i != prev and token not in _SPECIAL_TOKENS:
+            phonemes.append(token)
+        prev = i
+    return phonemes

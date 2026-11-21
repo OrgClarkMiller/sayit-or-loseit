@@ -5,10 +5,7 @@ from piper import PiperVoice
 from languages import LANGUAGE_SHORT_FORM
 import subprocess
 import sys
-
-print('Importing sounddevice')
 import sounddevice as sd
-print('Finished importing sounddevice')
 
 voice: PiperVoice | None
 
