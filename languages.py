@@ -8,6 +8,15 @@ LANGUAGES = [
     'Polish'
 ]
 
+# espeak-ng language codes, as accepted by phonemizer's espeak backend
+LANGUAGE_SHORT_FORM = {
+    'English': 'en-us',
+    'French': 'fr-fr',
+    'Spanish': 'es',
+    'Dutch': 'nl',
+    'Polish': 'pl'
+}
+
 class LanguageProficiency(StrEnum):
     """Proficiency levels, lowest to highest: a beginner level, then the CEFR levels."""
     FRESHY = "< A1" # You know like nothing

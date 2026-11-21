@@ -2,3 +2,6 @@ venv
 __pycache__
 .vscode/settings.json
 conf.ini
+fr_FR-siwis-medium.onnx.json
+.gitignore
+fr_FR-siwis-medium.onnx
