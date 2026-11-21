@@ -123,6 +123,8 @@ class AppContext:
         percent_close = phon.similarity(sent_phon, resp_phon)
         self.overlay.set_similarity_percent(percent_close)
 
+        if conf.getboolean("Challenge", "playback"):
+            speaking.speak(sent_phon)
 
         if DEBUG_PHONETICS:
             speaking.speak(sent_phon)
