@@ -41,6 +41,7 @@ class AppContext:
 
     # The main work being done by the worker thread
     def worker(self):
+        # Handle reading the microphone, processing the context to build sentences, etc...
         pass
 
     def launch_config_window(self):
