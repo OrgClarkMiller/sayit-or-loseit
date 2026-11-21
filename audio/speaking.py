@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 from piper import PiperVoice
 
@@ -7,9 +9,11 @@ print('Finished importing sounddevice')
 
 voice: PiperVoice | None
 
+VOICE_MODEL_PATH = Path(__file__).parent / "assets" / "voice-models" / "en_US-lessac-medium.onnx"
+
 def load_voice():
     global voice
-    voice = PiperVoice.load("en_US-lessac-medium.onnx")
+    voice = PiperVoice.load(VOICE_MODEL_PATH)
 
 def _to_piper_phonemes(phonetics: list[str]) -> list[str]:
     """['b', 'ɔ̃', 'ʒ', 'u', 'ʁ'] -> ['b', 'ɔ', '̃', 'ʒ', 'u', 'ʁ', '.']
