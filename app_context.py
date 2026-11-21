@@ -7,12 +7,9 @@ from configuration_window import ConfigurationWindow
 import config
 from sentence_context_factory import sentence_context_factory, ContextKind
 import time
-from audio import phon, recording
+from audio import phon, recording, speaking
 
 DEBUG_PHONETICS = False
-
-if DEBUG_PHONETICS:
-    from audio import speaking
 
 # Holds refs to all essential components such as
 #the tray, the different windows and things
