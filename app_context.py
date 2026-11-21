@@ -59,14 +59,13 @@ class AppContext:
         if target_lang is not None:
             print(f"Initializing {target_lang}'s phonetic backend")
             phon.init_lang(target_lang)
+            speaking.load_voice()
             print(f"Finished initializing {target_lang}'s phonetic backend")
+
 
     def _init_backends(self):
         self.on_change_target_language()
         phon.init_model()
-
-        if DEBUG_PHONETICS:
-            speaking.load_voice()
 
     def start(self):
         self.overlay.start()
@@ -110,6 +109,10 @@ class AppContext:
         self.overlay.set_target_lang_sentence(gen.target_lang)
 
         sent_phon = phon.generate(gen.target_lang, target_lang)
+
+        if conf.getboolean("Challenge", "playback"):
+            speaking.speak(sent_phon)
+
         est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
 
         self.overlay.set_recording(True, est_dur)
@@ -119,9 +122,6 @@ class AppContext:
 
         percent_close = phon.similarity(sent_phon, resp_phon)
         self.overlay.set_similarity_percent(percent_close)
-
-        if conf.getboolean("Challenge", "playback"):
-            speaking.speak(sent_phon)
 
         if DEBUG_PHONETICS:
             speaking.speak(sent_phon)

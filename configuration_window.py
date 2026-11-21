@@ -142,6 +142,7 @@ class ConfigurationWindow(Window):
     def on_begin(self):
        pass
 
+
     def update_lang_conf(self, conf: ConfigParser):
         old = conf.get("Language", "target")
         if old == self.lang.get(): return
