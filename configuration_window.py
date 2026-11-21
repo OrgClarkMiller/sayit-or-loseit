@@ -1,55 +1,31 @@
-import ctypes
 import tkinter as tk
 from tkinter import ttk
-from ctypes import wintypes
 import config
 from languages import LANGUAGES
 
+from window import Window, WindowPosition
+
 WIDTH, HEIGHT = 500, 300
-MARGIN = 8  # gap between the window and the screen edge / taskbar
 
-def get_work_area(root):
-    """Screen area excluding the taskbar, as (left, top, right, bottom)."""
-    try:
-        rect = wintypes.RECT()
-        SPI_GETWORKAREA = 0x0030
-        ctypes.windll.user32.SystemParametersInfoW(SPI_GETWORKAREA, 0, ctypes.byref(rect), 0)
-        return rect.left, rect.top, rect.right, rect.bottom
-    except AttributeError:  # not on Windows
-        return 0, 0, root.winfo_screenwidth(), root.winfo_screenheight()
 
-class ConfigurationWindow:
-    def __init__(self):
-        self.root = self.create_root()
+class ConfigurationWindow(Window):
+    """Settings window. Construct it, then start(). Pass the app's stop_event so it
+    saves and closes when the app quits."""
+
+    def build(self):
         conf = config.get_config()
         self.language = tk.StringVar(self.root, value=conf.get("Language", "target", fallback=""))
-
         self.on_begin()
         self.render()
-        self.place_bottom_right()
-        self.root.mainloop()
 
-    def place_bottom_right(self):
-        self.root.geometry(f"{WIDTH}x{HEIGHT}")
-        self.root.update_idletasks()  # creates the window frame so we can measure it
-
-        # geometry() sizes the inside of the window, but positions its outer frame,
-        # so account for the borders and title bar.
-        border = self.root.winfo_rootx() - self.root.winfo_x()
-        title_bar = self.root.winfo_rooty() - self.root.winfo_y()
-        outer_w = WIDTH + 2 * border
-        outer_h = HEIGHT + title_bar + border
-
-        _, _, right, bottom = get_work_area(self.root)
-        x = right - outer_w - MARGIN
-        y = bottom - outer_h - MARGIN
-        self.root.geometry(f"{WIDTH}x{HEIGHT}+{x}+{y}")
+    def on_show(self):
+        self.place_window_at(WindowPosition.BOTTOM_RIGHT)
 
     def create_root(self):
         root = tk.Tk()
         root.title("Say it or Lose it — Configuration")
         root.resizable(False, False)
-        root.protocol("WM_DELETE_WINDOW", self.on_destroy)
+        root.protocol("WM_DELETE_WINDOW", self.close)  # X button -> same path as an app-wide close
         root.columnconfigure(1, weight=1)
 
         return root
@@ -69,9 +45,9 @@ class ConfigurationWindow:
     def on_begin(self):
        pass
 
-    def on_destroy(self):
+    def on_close(self):
         print("Closing Config Window")
         # Save any configuration
         conf = config.get_config()
         conf["Language"]["target"] = self.language.get()
-        self.root.destroy()  # required: overriding WM_DELETE_WINDOW disables the default close
+        super().on_close()  # destroys the root
