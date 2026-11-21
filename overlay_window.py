@@ -19,7 +19,6 @@ MIC_ICON_SIZE = 24  # px
 MIC_IDLE_COLOR = (239, 68, 68)     # red: not recording
 MIC_RECORDING_COLOR = (34, 197, 94)  # green: recording
 
-
 def _tinted_icon(master, color: tuple[int, int, int]) -> tk.PhotoImage:
     """The mic icon, shrunk and filled with one solid color.
 
@@ -45,8 +44,11 @@ class OverlayWindow(Window):
 
     # ---- Thread-safe API ----
 
-    def set_text(self, text: str):
-        self.call(self._set_text, text)
+    def set_sentence(self, text: str):
+        self.call(self._set_sentence, text)
+
+    def set_closeness(self, percent: float):
+        self.call(self._set_closeness, percent)
 
     def set_recording(self, recording: bool):
         """Turn the microphone icon green (recording) or red (not recording)."""
@@ -55,7 +57,8 @@ class OverlayWindow(Window):
     # ---- Tk thread ----
 
     def build(self):
-        self.text     = tk.StringVar(self.root, value="")
+        self.sentence        = tk.StringVar(self.root, value="")
+        self.closeness       = tk.StringVar(self.root, value="")
         # Keep references: Tk drops an image (and the label goes blank) once Python frees it
         self.mic_idle_icon      = _tinted_icon(self.root, MIC_IDLE_COLOR)
         self.mic_recording_icon = _tinted_icon(self.root, MIC_RECORDING_COLOR)
@@ -70,9 +73,22 @@ class OverlayWindow(Window):
         if self._previous_focus and user32.GetForegroundWindow() == hwnd:
             user32.SetForegroundWindow(self._previous_focus)
 
-    def _set_text(self, text):
-        self.text.set(text)
+    def _set_sentence(self, text: str):
+        self.sentence.set(text)
         self.place_window_at(WindowPosition.LOWER_CENTER)  # re-fit and re-center for the new length
+
+    # TODO: RETURN BG AND FG
+    def _calc_closeness_color(self, percent: float) -> str:
+        """Text color for a similarity score: red (way off) through to green (spot on)."""
+        if percent < 15: return 'red'
+        elif percent < 30: return '#f97316'  # orange
+        elif percent < 50: return '#facc15'  # yellow
+        elif percent < 75: return '#a3e635'  # yellow-green
+        else: return '#22c55e'               # green
+
+    def _set_closeness(self, percent: float):
+        self.closeness.set(f"{percent:.2f}% Similarity")
+        self.closeness_label.config(fg=self._calc_closeness_color(percent))
 
     def _set_recording(self, recording: bool):
         self.mic_label.config(image=self.mic_recording_icon if recording else self.mic_idle_icon)
@@ -95,11 +111,17 @@ class OverlayWindow(Window):
         return root
 
     def render(self):
+        # pack() returns None, so create and pack separately to keep the widget references
         self.mic_label = tk.Label(self.root, image=self.mic_idle_icon, bg="magenta")
         self.mic_label.pack()
-        self.text_label = tk.Label(self.root, textvariable=self.text, font=("Segoe UI", 12, "bold"),
-             bg="magenta", fg="white")
-        self.text_label.pack()
+
+        self.closeness_label = tk.Label(self.root, textvariable=self.closeness, font=("Segoe UI", 12, "bold"),
+            bg="magenta", fg="white")
+        self.closeness_label.pack()
+
+        self.sentence_label = tk.Label(self.root, textvariable=self.sentence, font=("Segoe UI", 12, "bold"),
+            bg="magenta", fg="white")
+        self.sentence_label.pack()
 
     def make_click_through(self):
         """Let all mouse input pass through the overlay to the windows below (Windows only)."""

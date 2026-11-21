@@ -99,7 +99,7 @@ class AppContext:
             return
         # 1. Generate Sentence and phonetics
         sentence = self.generator.generate(s_ctx)
-        self.overlay.set_text(sentence)
+        self.overlay.set_sentence(sentence)
         conf = config.get_config()
         target_lang = conf['Language']['target']
         proficieny = conf['Language']['proficiency']
@@ -115,7 +115,8 @@ class AppContext:
 
         print(sent_phon)
         print(resp_phon)
-        print(phon.similarity(sent_phon, resp_phon))
+        percent_close = phon.similarity(sent_phon, resp_phon)
+        self.overlay.set_closeness(percent_close)
 
         # TODO: Handle mic input, compare against sentence audio file
 
