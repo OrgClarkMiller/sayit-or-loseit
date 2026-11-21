@@ -24,6 +24,9 @@ class AppContext:
         self._windows_lock = threading.Lock()  # launches can come from the tray or worker thread
         self.config_window = None
 
+    def determine_sentence_context():
+        pass
+
     def start(self):
         self.overlay.start()
         self.tray_thread.start()
