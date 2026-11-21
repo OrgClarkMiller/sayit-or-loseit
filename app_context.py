@@ -7,13 +7,12 @@ from configuration_window import ConfigurationWindow
 import config
 from sentence_context_factory import sentence_context_factory, ContextKind
 import time
-from audio import phon
+from audio import phon, recording
 
 DEBUG_PHONETICS = False
 
 if DEBUG_PHONETICS:
     from audio import speaking
-
 
 # Holds refs to all essential components such as
 #the tray, the different windows and things
@@ -94,19 +93,33 @@ class AppContext:
             self.config_window = ConfigurationWindow(self)
             self.config_window.start()
 
-    # Output sentence in target language to overlay window
-    def _output_sentence(self):
+    def _run_challenge(self):
         s_ctx = sentence_context_factory(ContextKind.SCREEN_IMAGE)
         if s_ctx is None:
             return
+        # 1. Generate Sentence and phonetics
         sentence = self.generator.generate(s_ctx)
         self.overlay.set_text(sentence)
-        sent_phon = phon.generate(sentence, config.get_config()['Language']['target'])
+        conf = config.get_config()
+        target_lang = conf['Language']['target']
+        proficieny = conf['Language']['proficiency']
+
+        sent_phon = phon.generate(sentence, target_lang)
+        est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
+        print(f'Recording Response for {est_dur} s')
+        wav = recording.record(est_dur)
+        print('Finished recording response')
+        resp_phon = phon.generate(wav, target_lang)
+
+        print(sent_phon)
+        print(resp_phon)
+
         # TODO: Handle mic input, compare against sentence audio file
 
         if DEBUG_PHONETICS:
             speaking.speak(sent_phon)
-
+            time.sleep(0.5)
+            speaking.speak(resp_phon)
 
     # The main work being done by the worker thread
     def worker(self):
@@ -121,7 +134,7 @@ class AppContext:
 
             now = time.perf_counter()
             if now - prev_read_time > CONTEXT_READ_DELAY:
-                self._output_sentence()
+                self._run_challenge()
                 prev_read_time = now
             # Like sleep(1), but returns immediately when stop_event is set,
             # so Quit doesn't have to wait for the sleep to finish.

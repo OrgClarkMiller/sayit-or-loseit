@@ -26,3 +26,14 @@ class LanguageProficiency(StrEnum):
     B2 = "B2"
     C1 = "C1"
     C2 = "C2"
+
+# How long a speaker at each level takes per phoneme. Natives are ~0.08; these are starting guesses to tune.
+SECONDS_PER_PHONEME: dict[LanguageProficiency, float] = {
+    LanguageProficiency.FRESHY: 0.20,
+    LanguageProficiency.A1:     0.18,
+    LanguageProficiency.A2:     0.16,
+    LanguageProficiency.B1:     0.14,
+    LanguageProficiency.B2:     0.12,
+    LanguageProficiency.C1:     0.10,
+    LanguageProficiency.C2:     0.09,
+}

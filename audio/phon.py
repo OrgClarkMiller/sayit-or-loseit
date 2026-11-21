@@ -6,7 +6,7 @@ from phonemizer.separator import Separator
 from transformers import AutoModelForCTC, AutoProcessor
 import torch
 
-from languages import LANGUAGE_SHORT_FORM
+from languages import LANGUAGE_SHORT_FORM, LanguageProficiency, SECONDS_PER_PHONEME
 
 _WORD_SEP = "|"
 _SEPARATOR = Separator(phone=" ", word=_WORD_SEP)
@@ -28,9 +28,19 @@ def _model():
     model = AutoModelForCTC.from_pretrained(MODEL_ID).eval()
     return processor, model
 
+RECORD_PADDING = 1.5        # reaction time before speaking + trailing silence
+
 def init_lang(lang: str): _backend(LANGUAGE_SHORT_FORM[lang])
 
 def init_model(): _model()
+
+def generate(source: str | np.ndarray, target_language: str) -> list[str]:
+    if isinstance(source, str): return _generate_from_sentence(source, target_language)
+    elif isinstance(source, np.ndarray): return _generate_from_audio(source)
+    raise ValueError('Invalid source type')
+
+def speak_duration_estimate(phon: list[str], proficiency: str) -> float:
+    return len(phon) * SECONDS_PER_PHONEME[proficiency] + RECORD_PADDING
 
 def _flatten(word_phonemes: list[list[str]]) -> list[str]:
     return [p for word in word_phonemes for p in word]
@@ -52,8 +62,3 @@ def _generate_from_audio(audio: np.ndarray) -> list[str]:
         logits = model(inputs.input_values).logits
     ids = torch.argmax(logits, dim=-1)
     return processor.batch_decode(ids)[0].split()
-
-def generate(source: str | np.ndarray, target_language: str) -> list[str]:
-    if isinstance(source, str): return _generate_from_sentence(source, target_language)
-    elif isinstance(source, np.ndarray): return _generate_from_audio(source)
-    raise ValueError('Invalid source type')
