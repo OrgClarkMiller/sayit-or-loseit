@@ -4,6 +4,7 @@ from languages import LanguageProficiency
 from PIL.Image import Image
 import base64
 import io
+from pydantic import BaseModel, Field
 
 class ISentenceContext(ABC):
     def __init__(self):
@@ -49,15 +50,21 @@ def _image_to_base64_png(image: Image) -> str:
     image.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
+class GeneratedSentence(BaseModel):
+    source_lang: str = Field(description="Sentence in source language")
+    target_lang: str = Field(description="Sentence in target language")
+
 # Use gemini api to handle construction of sentences
 class SentenceGenerator:
     def __init__(
         self,
+        source_lang: str,
         target_lang: str,
         proficiency: LanguageProficiency,
         max_words: int,
         gemini_api_key: str
     ):
+        self._source_lang = source_lang
         self._target_lang = target_lang
         self._proficiency = proficiency
         self.max_words    = max_words
@@ -66,12 +73,15 @@ class SentenceGenerator:
     def _build_prompt(self, sentence_context: ISentenceContext) -> tuple[str, Image | None]:
         inject, image = sentence_context.build_prompt_context()
 
-        return (f"Build a sentence in {self._target_lang} {inject}. \
-            Keep it to <= {self.max_words} words and to this proficiency level: {self._proficiency}. \
-            Just include the final sentence, no other messages.", image)
+        prompt = (
+            f"Write one sentence in {self._target_lang} {inject}. "
+            f"Use at most {self.max_words} words, suited to a learner at CEFR level {self._proficiency}. "
+            f"Put that sentence in target_lang, and its natural {self._source_lang} translation in source_lang."
+        )
+        return prompt, image
 
     # Takes in a string that may be a sentence, may be a description of some objects on screen, may be the capture of all text on screen
-    def generate(self, sentence_context: ISentenceContext) -> str | None:
+    def generate(self, sentence_context: ISentenceContext) -> GeneratedSentence | None:
         try:
             prompt, image = self._build_prompt(sentence_context)
             print(prompt)
@@ -92,10 +102,16 @@ class SentenceGenerator:
 
             interaction = self._client.interactions.create(
                 model="gemini-3.5-flash-lite",
-                input=input
+                input=input,
+                response_format={
+                    "type": "text",
+                    "mine_type": "application/json",
+                    "schema": GeneratedSentence.model_json_schema()
+                }
             )
 
-            return interaction.output_text
+            gen = GeneratedSentence.model_validate_json(interaction.output_text)
+            return gen
         except:
             print("Failed to generate sentence")
             raise
