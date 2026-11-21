@@ -95,13 +95,16 @@ class AppContext:
             self.config_window.start()
 
     def _run_challenge(self):
+        conf = config.get_config()
+        if not conf.getboolean('Challenge', 'is_active'):
+            return
+
         s_ctx = sentence_context_factory(ContextKind.SCREEN_IMAGE)
         if s_ctx is None:
             return
         # 1. Generate Sentence and phonetics
         gen = self.generator.generate(s_ctx)
 
-        conf = config.get_config()
         target_lang = conf['Language']['target']
         proficieny = conf['Language']['proficiency']
 

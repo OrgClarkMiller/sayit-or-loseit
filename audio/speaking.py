@@ -2,6 +2,9 @@ from pathlib import Path
 
 import numpy as np
 from piper import PiperVoice
+from languages import LANGUAGE_SHORT_FORM
+import subprocess
+import sys
 
 print('Importing sounddevice')
 import sounddevice as sd
@@ -9,11 +12,46 @@ print('Finished importing sounddevice')
 
 voice: PiperVoice | None
 
-VOICE_MODEL_PATH = Path(__file__).parent / "assets" / "voice-models" / "en_US-lessac-medium.onnx"
+DEFAULT_LANG = 'English'
 
-def load_voice():
+# audio/ -> project root -> assets/voice-models
+VOICE_MODEL_DIR_PATH = Path(__file__).parent.parent / "assets" / "voice-models"
+
+# espeak code (LANGUAGE_SHORT_FORM) -> Piper voice model file. Each needs its .onnx.json next to it.
+# Download missing ones with: python -m piper.download_voices <name> --download-dir assets/voice-models
+lang_model_name_dict = {
+    'en-us': 'en_US-lessac-medium.onnx',
+    'fr-fr': 'fr_FR-siwis-medium.onnx',
+    'es':    'es_ES-davefx-medium.onnx',   # not downloaded yet
+    'nl':    'nl_NL-mls-medium.onnx',      # not downloaded yet
+    'pl':    'pl_PL-gosia-medium.onnx',    # not downloaded yet
+}
+
+def download_voice_model(model_name: str):
+    """Download a Piper voice (.onnx + .onnx.json) into VOICE_MODEL_DIR_PATH. Raises if it fails."""
+    VOICE_MODEL_DIR_PATH.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            sys.executable, "-m", "piper.download_voices",  # this venv's Python, not whatever "python" is on PATH
+            "--download-dir", str(VOICE_MODEL_DIR_PATH),
+            model_name.removesuffix(".onnx"),  # it takes the voice name, e.g. en_US-lessac-medium
+        ],
+        check=True,
+    )
+
+# Check if file exists, if it doesn't download it first
+def get_voice_model(lang: str):
+    lang_key = LANGUAGE_SHORT_FORM[lang]
+    model_name = lang_model_name_dict[lang_key]
+    voice_model_path = VOICE_MODEL_DIR_PATH / model_name
+    if not voice_model_path.exists():
+        download_voice_model(model_name)
+
+    return PiperVoice.load(voice_model_path)
+
+def load_voice(lang: str = DEFAULT_LANG):
     global voice
-    voice = PiperVoice.load(VOICE_MODEL_PATH)
+    voice = get_voice_model(lang)
 
 def _to_piper_phonemes(phonetics: list[str]) -> list[str]:
     """['b', 'ɔ̃', 'ʒ', 'u', 'ʁ'] -> ['b', 'ɔ', '̃', 'ʒ', 'u', 'ʁ', '.']
