@@ -34,12 +34,12 @@ class ConfigurationWindow(Window):
 
     def build(self):
         conf                  = config.get_config()
-        self.gemini_key       = tk.StringVar(self.root, value=conf.get("AI", "gemini_key", fallback=""))
-        self.lang             = tk.StringVar(self.root, value=conf.get("Language", "target", fallback=""))
-        self.lang_proficiency = tk.StringVar(self.root, value=conf.get("Language", "proficiency", fallback=LanguageProficiency.FRESHY))
-        self.max_words        = tk.IntVar(self.root, value=conf.getint("Sentence", "max_words", fallback=DEFAULT_MAX_WORDS))
-        self.challenge_active = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "is_active", fallback=True))
-        self.challenge_playback = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "playback", fallback=True))
+        self.gemini_key       = tk.StringVar(self.root, value=conf.get("AI", "gemini_key"))
+        self.lang             = tk.StringVar(self.root, value=conf.get("Language", "target"))
+        self.lang_proficiency = tk.StringVar(self.root, value=conf.get("Language", "proficiency"))
+        self.max_words        = tk.IntVar(self.root, value=conf.getint("Sentence", "max_words"))
+        self.challenge_active = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "is_active"))
+        self.challenge_playback = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "playback"))
 
         # Loaded once and shared by every toggle. Keep references on self: Tk deletes an
         # image as soon as Python frees it, and any label still showing it goes blank.
@@ -156,14 +156,7 @@ class ConfigurationWindow(Window):
         conf = config.get_config()
         self.update_lang_conf(conf)
         conf["Language"]["proficiency"] = self.lang_proficiency.get()
-        if not conf.has_section("Sentence"):
-            conf.add_section("Sentence")
         conf["Sentence"]["max_words"] = str(self.get_max_words())
-        if not conf.has_section("AI"):
-            conf.add_section("AI")
-
-        if not conf.has_section("Challenge"):
-            conf.add_section("Challenge")
         conf["Challenge"]["is_active"] = str(self.challenge_active.get())  # configparser only stores strings
         conf["Challenge"]["playback"] = str(self.challenge_playback.get())
         conf["AI"]["gemini_key"] = self.gemini_key.get().strip()  # pasted keys often carry stray whitespace

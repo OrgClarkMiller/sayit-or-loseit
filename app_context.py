@@ -1,5 +1,4 @@
 import threading
-from languages import LanguageProficiency
 from sentence_generation.sentence_generator import SentenceGenerator
 from tray import TrayManager
 from window import ConfigurationWindow, OverlayWindow
@@ -27,7 +26,7 @@ class AppContext:
         # Windows run on their own threads (started by .start()) and close on stop_event.
         # Their public methods are thread-safe, e.g. ctx.overlay.set_text("hi") from anywhere.
         self.overlay = None
-        self._update_overlay(config.get_config().getboolean('Challenge', 'is_active', fallback=False)) # Show the overlay
+        self._update_overlay(config.get_config().getboolean('Challenge', 'is_active')) # Show the overlay
 
         # The config window can be opened and closed repeatedly; a fresh one is made each time.
         self._windows_lock = threading.Lock()  # launches can come from the tray or worker thread
@@ -44,22 +43,21 @@ class AppContext:
         """
         conf = config.get_config()
         self.generator = SentenceGenerator(
-            source_lang=conf.get("Language", "source", fallback="English"),
-            target_lang=conf.get("Language", "target", fallback="Russian"),
-            proficiency=conf.get("Language", "proficiency", fallback=LanguageProficiency.FRESHY),
-            max_words=conf.getint("Sentence", "max_words", fallback=10),
+            source_lang=conf.get("Language", "source"),
+            target_lang=conf.get("Language", "target"),
+            proficiency=conf.get("Language", "proficiency"),
+            max_words=conf.getint("Sentence", "max_words"),
             gemini_api_key=conf["AI"]["gemini_key"]
         )
 
     def on_change_target_language(self):
         print('on_change_target_language')
         # Initialize the backend rightaway since it takes a long time
-        target_lang = config.get_config().get("Language", 'target', fallback=None)
-        if target_lang is not None:
-            print(f"Initializing {target_lang}'s phonetic backend")
-            phon.init_lang(target_lang)
-            speaking.load_voice(target_lang)  # the target language's voice, not the English default
-            print(f"Finished initializing {target_lang}'s phonetic backend")
+        target_lang = config.get_config().get("Language", "target")
+        print(f"Initializing {target_lang}'s phonetic backend")
+        phon.init_lang(target_lang)
+        speaking.load_voice(target_lang)  # the target language's voice, not the English default
+        print(f"Finished initializing {target_lang}'s phonetic backend")
 
     def _init_backends(self):
         self.on_change_target_language()
@@ -143,7 +141,7 @@ class AppContext:
             print("checking for events...")
 
             conf = config.get_config()
-            is_active = conf.getboolean('Challenge', 'is_active', fallback=False)
+            is_active = conf.getboolean('Challenge', 'is_active')
             if not is_active:
                 self._update_overlay(False)
             else:
