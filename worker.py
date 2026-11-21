@@ -1,4 +1,12 @@
+from overlay_window import OverlayWindow
+import time
+
 def worker_main(stop_event):
+    # TEMP
+    wnd = OverlayWindow()
+    time.sleep(20)
+    wnd.close()
+
     """Worker loop: runs until the user clicks Quit in the tray."""
     while not stop_event.is_set():
         # TODO: poll / handle system events here
