@@ -134,7 +134,7 @@ class Window(ABC):
         thread (e.g. at interpreter exit), Tk would raise 'main thread is not in main loop'
         or abort with Tcl_AsyncDelete."""
         for name, value in list(vars(self).items()):
-            if isinstance(value, (tk.Variable, tk.Misc)):
+            if isinstance(value, (tk.Variable, tk.Misc, tk.Image)):
                 setattr(self, name, None)
         gc.collect()  # widgets hold reference cycles; free them here, not on some other thread
 

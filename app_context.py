@@ -107,7 +107,9 @@ class AppContext:
         sent_phon = phon.generate(sentence, target_lang)
         est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
         print(f'Recording Response for {est_dur} s')
+        self.overlay.set_recording(True)
         wav = recording.record(est_dur)
+        self.overlay.set_recording(False)
         print('Finished recording response')
         resp_phon = phon.generate(wav, target_lang)
 
