@@ -6,6 +6,7 @@ import config
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
 import time
 from audio import phon, recording, speaking
+from punishment import get_fail_severity, punishment_factory
 
 DEBUG_PHONETICS = False
 CONTEXT_READ_DELAY = 10
@@ -96,6 +97,7 @@ class AppContext:
             self.overlay.start()  # a window only appears once started
 
     def _run_challenge(self):
+        print('_run_challenge()')
         conf = config.get_config()
 
         s_ctx = sentence_context_factory(ContextKind.SCREEN_IMAGE)
@@ -118,13 +120,18 @@ class AppContext:
 
         est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
 
+        print('recording voice')
         self.overlay.set_recording(True, est_dur)
         wav = recording.record(est_dur)
         self.overlay.set_recording(False)
         resp_phon = phon.generate(wav, target_lang)
 
-        percent_close = phon.similarity(sent_phon, resp_phon)
-        self.overlay.set_similarity_percent(percent_close)
+        percent_similar = phon.similarity(sent_phon, resp_phon)
+        self.overlay.set_similarity_percent(percent_similar)
+
+        fail_severity = get_fail_severity(percent_similar)
+        pun = punishment_factory('TODO: FIND ACTUAL PROCESS NAME', fail_severity)
+        pun.punish()
 
         if DEBUG_PHONETICS:
             speaking.speak(resp_phon)

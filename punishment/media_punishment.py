@@ -1,7 +1,7 @@
-from pyinterceptor import Interception
+# from pyinterceptor import Interception
 from .punishment import Punishment
 
-interception = Interception()
+# interception = Interception()
 
 class MediaPunishment(Punishment):
     def __init__(self, fail_severity):
