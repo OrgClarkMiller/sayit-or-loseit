@@ -31,7 +31,7 @@ class ScreenTextSentenceContext(ISentenceContext):
             self.screen_grab = str(screen_grab) # Puts into format of [STR_1, STR_2, STR_3]
 
     def build_prompt_context(self):
-        return f"from this list of on-screen text, make the sentence incorporate the most logic text seen: {self.screen_grab}"
+        return f"from this list of on-screen text, make the sentence incorporate the most logical text seen and ignore nonsense: {self.screen_grab}"
 
 # Use gemini api to handle construction of sentences
 class SentenceGenerator:
