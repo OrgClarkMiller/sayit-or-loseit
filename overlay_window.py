@@ -1,24 +1,44 @@
-import threading
+import ctypes
 import tkinter as tk
 from window import Window, WindowPosition
 
-POLL_MS = 100
+# Win32 extended window styles
+GWL_EXSTYLE = -20
+WS_EX_LAYERED = 0x00080000      # required for WS_EX_TRANSPARENT to pass clicks through
+WS_EX_TRANSPARENT = 0x00000020  # mouse input goes to whatever is underneath
+WS_EX_TOOLWINDOW = 0x00000080   # keep it out of the taskbar and Alt+Tab
+WS_EX_NOACTIVATE = 0x08000000   # never take keyboard focus
 
 class OverlayWindow(Window):
-    def __init__(self):
-        self._close_event = threading.Event()
-        super().__init__()
+    """Always-on-top, click-through text overlay.
+
+    Construct it, then start(). Its public methods are safe to call from any thread.
+    Pass the app's stop_event so it closes when the app does.
+    """
+
+    # ---- Thread-safe API ----
+
+    def set_text(self, text: str):
+        self.call(self._set_text, text)
+
+    # ---- Tk thread ----
+
+    def build(self):
+        self.text = tk.StringVar(self.root, value="")
         self.render()
+
+    def on_show(self):
         self.place_window_at(WindowPosition.LOWER_CENTER)
-        # Check every POLL_MS if the window should be closed
-        self.root.after(POLL_MS, self._check_close)
-        self.root.mainloop()
+        self.make_click_through()
+
+    def _set_text(self, text):
+        self.text.set(text)
+        self.place_window_at(WindowPosition.LOWER_CENTER)  # re-fit and re-center for the new length
 
     def create_root(self):
         root = tk.Tk()
-        root.title("Say it or Lose it — Configuration")
+        root.title("Say it or Lose it — Overlay")
         root.resizable(False, False)
-        root.geometry("400x400")
 
         # Hide toolbar
         root.overrideredirect(True)
@@ -30,16 +50,16 @@ class OverlayWindow(Window):
         return root
 
     def render(self):
-        tk.Label(self.root, text="Configuration", font=("Segoe UI", 12, "bold"),
+        tk.Label(self.root, textvariable=self.text, font=("Segoe UI", 12, "bold"),
              bg="magenta", fg="white") \
         .pack()
 
-    def close(self):
-        self._close_event.set()
-
-    def _check_close(self):
-        # Runs on the Tk thread, so destroying here is safe.
-        if self._close_event.is_set():
-            self.root.destroy()
-        else:
-            self.root.after(POLL_MS, self._check_close)
+    def make_click_through(self):
+        """Let all mouse input pass through the overlay to the windows below (Windows only)."""
+        self.root.update_idletasks()  # make sure the native window exists
+        user32 = ctypes.windll.user32
+        # winfo_id() is Tk's inner client window; its parent is the real top-level window.
+        hwnd = user32.GetParent(self.root.winfo_id())
+        style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+        user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)

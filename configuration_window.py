@@ -1,7 +1,5 @@
-import ctypes
 import tkinter as tk
 from tkinter import ttk
-from ctypes import wintypes
 import config
 from languages import LANGUAGES
 
@@ -11,22 +9,23 @@ WIDTH, HEIGHT = 500, 300
 
 
 class ConfigurationWindow(Window):
-    def __init__(self):
-        super().__init__()
+    """Settings window. Construct it, then start(). Pass the app's stop_event so it
+    saves and closes when the app quits."""
+
+    def build(self):
         conf = config.get_config()
         self.language = tk.StringVar(self.root, value=conf.get("Language", "target", fallback=""))
-
-        self.place_window_at(WindowPosition.BOTTOM_RIGHT)
-
         self.on_begin()
         self.render()
-        self.root.mainloop()
+
+    def on_show(self):
+        self.place_window_at(WindowPosition.BOTTOM_RIGHT)
 
     def create_root(self):
         root = tk.Tk()
         root.title("Say it or Lose it — Configuration")
         root.resizable(False, False)
-        root.protocol("WM_DELETE_WINDOW", self.on_destroy)
+        root.protocol("WM_DELETE_WINDOW", self.close)  # X button -> same path as an app-wide close
         root.columnconfigure(1, weight=1)
 
         return root
@@ -46,9 +45,9 @@ class ConfigurationWindow(Window):
     def on_begin(self):
        pass
 
-    def on_destroy(self):
+    def on_close(self):
         print("Closing Config Window")
         # Save any configuration
         conf = config.get_config()
         conf["Language"]["target"] = self.language.get()
-        self.root.destroy()  # required: overriding WM_DELETE_WINDOW disables the default close
+        super().on_close()  # destroys the root

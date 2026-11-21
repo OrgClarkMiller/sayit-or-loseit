@@ -1,11 +1,10 @@
-from worker import worker_main
-from tray import TrayManager
 import config
+from app_context import AppContext
 
 if __name__ == "__main__":
     conf = config.get_config()
-
-    manager = TrayManager(worker_main)
-    manager.run()
+    ctx = AppContext()
+    ctx.start()
+    ctx.join()
 
     config.save_config()
