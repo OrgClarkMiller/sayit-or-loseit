@@ -1,11 +1,11 @@
+from configparser import ConfigParser
 import threading
 from languages import LanguageProficiency
-from sentence_generator import SentenceGenerator
+from sentence_generation.sentence_generator import SentenceGenerator
 from tray import TrayManager
-from overlay_window import OverlayWindow
-from configuration_window import ConfigurationWindow
+from window import ConfigurationWindow, OverlayWindow
 import config
-from sentence_context_factory import sentence_context_factory, ContextKind
+from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
 import time
 from audio import phon, recording, speaking
 
@@ -90,10 +90,21 @@ class AppContext:
             self.config_window = ConfigurationWindow(self)
             self.config_window.start()
 
-    def _run_challenge(self):
+    def _update_overlay(self, show) -> bool:
         conf = config.get_config()
         if not conf.getboolean('Challenge', 'is_active'):
-            return
+            # TODO: HIDE WINDOW INSTEAD
+            self.overlay.make_default()
+
+
+    def _run_challenge(self):
+        conf = config.get_config()
+        is_active = conf.getboolean('Challenge', 'is_active')
+        if not is_active:
+            self._update_overlay(False)
+            return # Early return, don't run the challenge logic
+        else:
+            self._update_overlay(True)
 
         s_ctx = sentence_context_factory(ContextKind.SCREEN_IMAGE)
         if s_ctx is None:

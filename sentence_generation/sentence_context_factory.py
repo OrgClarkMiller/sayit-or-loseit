@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from sentence_generator import (
+from .sentence_generator import (
     ISentenceContext,
     ImageSentenceContext,
     ScreenTextSentenceContext,

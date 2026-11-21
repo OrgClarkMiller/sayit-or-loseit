@@ -10,12 +10,12 @@ from PIL import Image
 import config
 from languages import LANGUAGES, LanguageProficiency
 
-from window import Window, WindowPosition
+from .window import Window, WindowPosition
 
 WIDTH, HEIGHT = 500, 300
 MIN_WORDS, MAX_WORDS, DEFAULT_MAX_WORDS = 1, 500, 15
 
-ASSETS = Path(__file__).parent / "assets"
+ASSETS = Path(__file__).parent.parent / "assets"  # window/ -> project root
 TOGGLE_ON_PATH  = ASSETS / "on-toggle-icon.png"
 TOGGLE_OFF_PATH = ASSETS / "off-toggle-icon.png"
 TOGGLE_SIZE = (60, 24)  # px; the source images are 100x40

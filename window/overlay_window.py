@@ -1,20 +1,13 @@
 import base64
-import ctypes
 import io
 import time
 from pathlib import Path
 import tkinter as tk
 
 from PIL import Image
-from window import MARGIN, Window, WindowPosition
+from .window import MARGIN, Window, WindowPosition
 from screen_io.screen_capture import exclude_from_capture, user32
-
-# Win32 extended window styles
-GWL_EXSTYLE = -20
-WS_EX_LAYERED = 0x00080000      # required for WS_EX_TRANSPARENT to pass clicks through
-WS_EX_TRANSPARENT = 0x00000020  # mouse input goes to whatever is underneath
-WS_EX_TOOLWINDOW = 0x00000080   # keep it out of the taskbar and Alt+Tab
-WS_EX_NOACTIVATE = 0x08000000   # never take keyboard focus
+from .window_helpers import hwnd, make_click_through, round_corners
 
 # Keyed out by the window: anything exactly this color is see-through. Near-black rather
 # than magenta because Windows anti-aliases text against the background color, so text
@@ -49,7 +42,7 @@ MAX_TEXT_WIDTH = 460  # px, longer sentences wrap
 BAR_HEIGHT = 4        # px
 TICK_MS = 200         # how often the countdown redraws
 
-MIC_ICON_PATH = Path(__file__).parent / "assets" / "microphone-icon.png"
+MIC_ICON_PATH = Path(__file__).parent.parent / "assets" / "microphone-icon.png"  # window/ -> project root
 MIC_ICON_SIZE = 16  # px
 MIC_IDLE_COLOR = (239, 68, 68)       # red: not recording
 MIC_RECORDING_COLOR = (34, 197, 94)  # green: recording
@@ -144,10 +137,7 @@ class OverlayWindow(Window):
         c.pack()
 
         self._texts: dict[str, list[tuple[int, int, int]]] = {}  # name -> [(item, dx, dy)]
-        self._add_text("header", HEADER_FONT, MUTED)
-        self._add_text("status", STATUS_FONT, MUTED)
-        self._add_text("sentence", SENTENCE_FONT, TEXT, wrap=MAX_TEXT_WIDTH)
-        self._add_text("translation", SMALL_FONT, MUTED, wrap=MAX_TEXT_WIDTH)
+        self.render_headers()
 
         self.mic_item = c.create_image(0, 0, image=self.mic_idle_icon, anchor="ne")
         self.rec_dot = c.create_oval(0, 0, 0, 0, fill=RED, outline=OUTLINE, state="hidden")
@@ -155,14 +145,20 @@ class OverlayWindow(Window):
         self.bar_fill = c.create_rectangle(0, 0, 0, 0, fill=GREEN, width=0, state="hidden")
         self._layout()
 
+    def render_headers(self):
+        self._add_text("header", HEADER_FONT, MUTED)
+        self._add_text("status", STATUS_FONT, MUTED)
+        self._add_text("sentence", SENTENCE_FONT, TEXT, wrap=MAX_TEXT_WIDTH)
+        self._add_text("translation", SMALL_FONT, MUTED, wrap=MAX_TEXT_WIDTH)
+
     def on_show(self):
         self.place_window_at(WindowPosition.LOWER_CENTER)
-        hwnds = [_hwnd(self.root), _hwnd(self.backdrop)]
-        for hwnd in hwnds:
-            _make_click_through(hwnd)
+        hwnds = [hwnd(self.root), hwnd(self.backdrop)]
+        for handle in hwnds:  # not "hwnd": that would shadow the hwnd() helper for the whole method
+            make_click_through(handle)
             # Keep the overlay out of our own screen captures (it sits on top of the focused window)
-            exclude_from_capture(hwnd)
-        _round_corners(hwnds[1])
+            exclude_from_capture(handle)
+        round_corners(hwnds[1])
         self.backdrop.attributes("-alpha", BACKDROP_ALPHA)
         if self._previous_focus and user32.GetForegroundWindow() in hwnds:
             user32.SetForegroundWindow(self._previous_focus)
@@ -313,29 +309,3 @@ class OverlayWindow(Window):
         root.attributes("-transparentcolor", TRANSPARENT)
         root.attributes("-topmost", True)  # usually wanted for an overlay
         return root
-
-
-
-def _hwnd(window: tk.Misc) -> int:
-    """The real top-level Win32 window of a Tk root or Toplevel."""
-    window.update_idletasks()  # make sure the native window exists
-    # winfo_id() is Tk's inner client window; its parent is the real top-level window.
-    return user32.GetParent(window.winfo_id())
-
-
-def _make_click_through(hwnd: int):
-    """Let all mouse input pass through the window to the windows below (Windows only)."""
-    style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-    style |= WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
-    user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
-
-
-def _round_corners(hwnd: int):
-    """Ask Windows 11 to round the window's corners. Does nothing on Windows 10."""
-    DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND = 33, 2
-    try:
-        pref = ctypes.c_int(DWMWCP_ROUND)
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
-                                                   ctypes.byref(pref), ctypes.sizeof(pref))
-    except (AttributeError, OSError):
-        pass

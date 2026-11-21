@@ -1,4 +1,4 @@
-from overlay_window import OverlayWindow
+from window import OverlayWindow
 import time
 
 def worker_main(stop_event):
