@@ -35,6 +35,15 @@ def _tinted_icon(master, color: tuple[int, int, int]) -> tk.PhotoImage:
     # A plain tk.PhotoImage (not ImageTk) so Window._release_tk frees it on the Tk thread
     return tk.PhotoImage(master=master, data=base64.b64encode(buf.getvalue()))
 
+# TODO: RETURN BG AND FG
+def _calc_similarity_color(percent: float) -> str:
+    """Text color for a similarity score: red (way off) through to green (spot on)."""
+    if percent < 15: return 'red'
+    elif percent < 30: return '#f97316'  # orange
+    elif percent < 50: return '#facc15'  # yellow
+    elif percent < 75: return '#a3e635'  # yellow-green
+    else: return '#22c55e'               # green
+
 class OverlayWindow(Window):
     """Always-on-top, click-through text overlay.
 
@@ -44,21 +53,26 @@ class OverlayWindow(Window):
 
     # ---- Thread-safe API ----
 
-    def set_sentence(self, text: str):
-        self.call(self._set_sentence, text)
+    def set_target_lang_sentence(self, text: str):
+        self.call(self._set_target_lang_sentence, text)
 
-    def set_closeness(self, percent: float):
-        self.call(self._set_closeness, percent)
+    def set_source_lang_sentence(self, text: str):
+        self.call(self._set_source_lang_sentence, text)
+
+    def set_similarity_percent(self, percent: float):
+        self.call(self._set_similarity_percent, percent)
 
     def set_recording(self, recording: bool):
         """Turn the microphone icon green (recording) or red (not recording)."""
         self.call(self._set_recording, recording)
 
+
     # ---- Tk thread ----
 
     def build(self):
-        self.sentence        = tk.StringVar(self.root, value="")
-        self.closeness       = tk.StringVar(self.root, value="")
+        self.source_lang_sentence = tk.StringVar(self.root, value="")
+        self.target_lang_sentence = tk.StringVar(self.root, value="")
+        self.similarity           = tk.StringVar(self.root, value="")
         # Keep references: Tk drops an image (and the label goes blank) once Python frees it
         self.mic_idle_icon      = _tinted_icon(self.root, MIC_IDLE_COLOR)
         self.mic_recording_icon = _tinted_icon(self.root, MIC_RECORDING_COLOR)
@@ -73,22 +87,17 @@ class OverlayWindow(Window):
         if self._previous_focus and user32.GetForegroundWindow() == hwnd:
             user32.SetForegroundWindow(self._previous_focus)
 
-    def _set_sentence(self, text: str):
-        self.sentence.set(text)
+    def _set_target_lang_sentence(self, text: str):
+        self.target_lang_sentence.set(text)
         self.place_window_at(WindowPosition.LOWER_CENTER)  # re-fit and re-center for the new length
 
-    # TODO: RETURN BG AND FG
-    def _calc_closeness_color(self, percent: float) -> str:
-        """Text color for a similarity score: red (way off) through to green (spot on)."""
-        if percent < 15: return 'red'
-        elif percent < 30: return '#f97316'  # orange
-        elif percent < 50: return '#facc15'  # yellow
-        elif percent < 75: return '#a3e635'  # yellow-green
-        else: return '#22c55e'               # green
+    def _set_source_lang_sentence(self, text: str):
+        self.source_lang_sentence.set(text)
+        self.place_window_at(WindowPosition.LOWER_CENTER)  # re-fit and re-center for the new length
 
-    def _set_closeness(self, percent: float):
-        self.closeness.set(f"{percent:.2f}% Similarity")
-        self.closeness_label.config(fg=self._calc_closeness_color(percent))
+    def _set_similarity_percent(self, percent: float):
+        self.similarity.set(f"{percent:.2f}% Similarity")
+        self.similarity_label.config(fg=_calc_similarity_color(percent))
 
     def _set_recording(self, recording: bool):
         self.mic_label.config(image=self.mic_recording_icon if recording else self.mic_idle_icon)
@@ -115,13 +124,17 @@ class OverlayWindow(Window):
         self.mic_label = tk.Label(self.root, image=self.mic_idle_icon, bg="magenta")
         self.mic_label.pack()
 
-        self.closeness_label = tk.Label(self.root, textvariable=self.closeness, font=("Segoe UI", 12, "bold"),
+        self.similarity_label = tk.Label(self.root, textvariable=self.similarity, font=("Segoe UI", 12, "bold"),
             bg="magenta", fg="white")
-        self.closeness_label.pack()
+        self.similarity_label.pack()
 
-        self.sentence_label = tk.Label(self.root, textvariable=self.sentence, font=("Segoe UI", 12, "bold"),
+        self.target_lang_sentence_label = tk.Label(self.root, textvariable=self.target_lang_sentence, font=("Segoe UI", 12, "bold"),
             bg="magenta", fg="white")
-        self.sentence_label.pack()
+        self.target_lang_sentence_label.pack()
+
+        self.source_lang_sentence_label = tk.Label(self.root, textvariable=self.source_lang_sentence, font=("Segoe UI", 12, "bold"),
+            bg="magenta", fg="white")
+        self.source_lang_sentence_label.pack()
 
     def make_click_through(self):
         """Let all mouse input pass through the overlay to the windows below (Windows only)."""
