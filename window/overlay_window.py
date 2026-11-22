@@ -9,7 +9,7 @@ from icons import Icon, GifIcon
 from PIL import Image, ImageSequence
 from .window import MARGIN, Window, WindowPosition
 from screen_io.screen_capture import exclude_from_capture, user32
-from .window_helpers import hwnd, make_click_through, round_corners
+from .window_helpers import app_window_below, hwnd, is_app_window, make_click_through, round_corners
 from punishment.fail_severity import get_fail_severity, FAIL_SEVERITY_COLOR
 
 # Keyed out by the window: anything exactly this color is see-through. Near-black rather
@@ -104,8 +104,10 @@ class OverlayWindow(Window):
     def set_attempt(self, n: int, max_attempts: int):
         self.call(self._set_attempt, n, max_attempts)
 
-    def set_processing(self, is_processing: bool):
-        self.call(self._set_processing, is_processing)
+    def set_processing(self, is_processing: bool, message: str = ""):
+        """Show only the loading spinner, with an optional message beside it, e.g.
+        "Generating sentence...". Everything else comes back when set to False."""
+        self.call(self._set_processing, is_processing, message)
 
     # ---- Tk thread ----
 
@@ -141,7 +143,7 @@ class OverlayWindow(Window):
         self.render_headers()
 
         self.mic_item     = c.create_image(0, 0, image=self.mic_idle_icon, anchor="ne")
-        self.loading_item = c.create_image(0, 0, image=self.loading_frames[0], anchor="n", state="hidden")
+        self.loading_item = c.create_image(0, 0, image=self.loading_frames[0], anchor="nw", state="hidden")
         self.rec_dot      = c.create_oval(0, 0, 0, 0, fill=color_palette.RED, outline=color_palette.OUTLINE, state="hidden")
         self.bar_track    = c.create_rectangle(0, 0, 0, 0, fill=color_palette.TRACK, outline=color_palette.OUTLINE, state="hidden")
         self.bar_fill     = c.create_rectangle(0, 0, 0, 0, fill=color_palette.GREEN, width=0, state="hidden")
@@ -153,6 +155,7 @@ class OverlayWindow(Window):
         self._add_text("status", STATUS_FONT, color_palette.MUTED)
         self._add_text("sentence", SENTENCE_FONT, color_palette.TEXT, wrap=MAX_TEXT_WIDTH)
         self._add_text("translation", SMALL_FONT, color_palette.MUTED, wrap=MAX_TEXT_WIDTH)
+        self._add_text("processing", SMALL_FONT, color_palette.MUTED, wrap=MAX_TEXT_WIDTH)
 
     def on_show(self):
         self.place_window_at(WindowPosition.LOWER_CENTER)
@@ -163,8 +166,14 @@ class OverlayWindow(Window):
             exclude_from_capture(handle)
         round_corners(hwnds[1])
         self.backdrop.attributes("-alpha", color_palette.BACKDROP_ALPHA)
-        if self._previous_focus and user32.GetForegroundWindow() in hwnds:
-            user32.SetForegroundWindow(self._previous_focus)
+        # Tk focused the overlay when it appeared: hand focus back, or challenges would
+        # screenshot the overlay (which capture skips) instead of the user's app. If the
+        # window that had focus is gone or is ours (e.g. the config window, which closes
+        # just as challenges get switched on), use the app window under the overlay.
+        if user32.GetForegroundWindow() in hwnds:
+            target = self._previous_focus if is_app_window(self._previous_focus) else app_window_below(hwnds[0])
+            if target:
+                user32.SetForegroundWindow(target)
 
     def place_window_at(self, position: WindowPosition, margin: int = MARGIN):
         super().place_window_at(position, margin)
@@ -211,9 +220,11 @@ class OverlayWindow(Window):
         self._set_text("attempt", f"Attempt {n} of {max_attempts}")
         self._layout()
 
-    def _set_processing(self, is_processing: bool):
+    def _set_processing(self, is_processing: bool, message: str = ""):
+        self._set_text("processing", message if is_processing else "")
         if is_processing == self._processing:
-            return  # already in that state: don't restart the animation
+            self._layout()  # only the message changed: re-fit, but don't restart the animation
+            return
         self._processing = is_processing
         if self._spin_id is not None:
             self.root.after_cancel(self._spin_id)
@@ -277,16 +288,26 @@ class OverlayWindow(Window):
         # While processing, only the spinner shows: everything else is hidden, and comes
         # back unchanged once processing ends
         content_state = "hidden" if self._processing else "normal"
-        for items in self._texts.values():
+        for name, items in self._texts.items():
+            state = ("normal" if self._processing else "hidden") if name == "processing" else content_state
             for item, _, _ in items:
-                c.itemconfigure(item, state=content_state)
+                c.itemconfigure(item, state=state)
         c.itemconfigure(self.mic_item, state=content_state)
         if self._processing:
             for item in (self.rec_dot, self.bar_track, self.bar_fill):
                 c.itemconfigure(item, state="hidden")
-            width, height = MIN_WIDTH + 2 * PAD, loading_gif_icon.size + 2 * PAD
-            c.coords(self.loading_item, width / 2, PAD)
-            self._resize_canvas(width, height)
+
+            # Spinner with the message to its right, centred together as one group
+            icon = loading_gif_icon.size
+            msg_w, msg_h = self._text_size("processing")
+            group_w = icon + (8 + msg_w if msg_w else 0)
+            row_h = max(icon, msg_h)
+            width = max(MIN_WIDTH, group_w) + 2 * PAD
+            left = (width - group_w) / 2
+            mid = PAD + row_h / 2
+            c.coords(self.loading_item, left, mid - icon / 2)
+            self._place_text("processing", left + icon + 8, mid, "w")
+            self._resize_canvas(width, row_h + 2 * PAD)
             return
 
         header_w, header_h = self._text_size("header")
@@ -366,11 +387,12 @@ class OverlayWindow(Window):
 # Allows you to create a with block around a long-running operation
 #to have the overlay display a loading gif until the operation completes
 class ProcessingIndicator:
-    def __init__(self, overlay: OverlayWindow):
+    def __init__(self, overlay: OverlayWindow, message: str = ""):
         self._overlay = overlay
+        self._message = message
 
-    def __enter__(self): # TODO: Use forward ref here
-        self._overlay.set_processing(True)
+    def __enter__(self):
+        self._overlay.set_processing(True, self._message)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):

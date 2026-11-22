@@ -142,13 +142,17 @@ class ConfigurationWindow(Window):
     def on_begin(self):
        pass
 
-
     def update_lang_conf(self, conf: ConfigParser):
         old = conf.get("Language", "target")
         if old == self.lang.get(): return
 
         conf["Language"]["target"] = self.lang.get()
         self._app_context.on_change_target_language()
+
+    # Also pass event up to the app context to reset
+    def update_is_active_conf(self, conf: ConfigParser):
+        conf["Challenge"]["is_active"] = str(self.challenge_active.get())  # configparser only stores strings
+        self._app_context.on_change_challenge_status()
 
     def on_close(self):
         print("Closing Config Window")
@@ -157,7 +161,7 @@ class ConfigurationWindow(Window):
         self.update_lang_conf(conf)
         conf["Language"]["proficiency"] = self.lang_proficiency.get()
         conf["Sentence"]["max_words"] = str(self.get_max_words())
-        conf["Challenge"]["is_active"] = str(self.challenge_active.get())  # configparser only stores strings
+        self.update_is_active_conf(conf)
         conf["Challenge"]["playback"] = str(self.challenge_playback.get())
         conf["AI"]["gemini_key"] = self.gemini_key.get().strip()  # pasted keys often carry stray whitespace
         self._app_context.apply_config()  # the generator copies its settings, so hand it the new ones
