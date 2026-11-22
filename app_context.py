@@ -106,24 +106,28 @@ class AppContext:
                 return
             target_lang = values["target_lang"]
             print(f"Loading settings for {target_lang}")
-            phon.init_lang(target_lang)  # warm up espeak so the first round isn't slow
-            settings = ChallengeSettings(
-                target_lang=target_lang,
-                proficiency=values["proficiency"],
-                playback=values["playback"],
-                generator=SentenceGenerator(
-                    source_lang=values["source_lang"],
+            # Create the overlay if it's destroyed
+            if self.overlay is None:
+                self.overlay = OverlayWindow(self)
+            with ProcessingIndicator(self.overlay, "Loading Language"):
+                phon.init_lang(target_lang)  # warm up espeak so the first round isn't slow
+                settings = ChallengeSettings(
                     target_lang=target_lang,
                     proficiency=values["proficiency"],
-                    max_words=values["max_words"],
-                    gemini_api_key=values["gemini_api_key"],
-                ),
-                voice=speaking.get_voice(target_lang),
-                version=version,
-            )
-            if self._is_latest_settings(version):
-                self.settings = settings  # one assignment: rounds see all old or all new
-                print(f"Settings for {target_lang} ready")
+                    playback=values["playback"],
+                    generator=SentenceGenerator(
+                        source_lang=values["source_lang"],
+                        target_lang=target_lang,
+                        proficiency=values["proficiency"],
+                        max_words=values["max_words"],
+                        gemini_api_key=values["gemini_api_key"],
+                    ),
+                    voice=speaking.get_voice(target_lang),
+                    version=version,
+                )
+                if self._is_latest_settings(version):
+                    self.settings = settings  # one assignment: rounds see all old or all new
+                    print(f"Settings for {target_lang} ready")
 
     def on_change_challenge_status(self):
         print('on_change_challenge_status()')
@@ -244,12 +248,14 @@ class AppContext:
         if s_ctx is None:
             return
 
+        # 1. Generate Sentence and phonetics (and set loading status)
         with ProcessingIndicator(self.overlay, "Generating Sentence"):
-            # 1. Generate Sentence and phonetics
             gen = settings.generator.generate(s_ctx)
 
         if not self._challenge_still_wanted(settings):  # the Gemini call can take a few seconds
             return
+
+        # 2.
 
         target_lang = settings.target_lang
         proficiency = settings.proficiency
