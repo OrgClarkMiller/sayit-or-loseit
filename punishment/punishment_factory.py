@@ -7,6 +7,7 @@ from .punishment import Punishment
 # punishment, so "from window import ..." would hit a half-loaded window package.
 from window.window_helpers import get_focused_details
 
+FPS_NAMES = set(['csgo'])
 MEDIA_NAMES = set(['youtube', 'netflix', 'disneyplus', 'anime', 'cartoon', 'wcofun'])
 
 def is_media(window_name_split: list[str]):
@@ -15,6 +16,8 @@ def is_media(window_name_split: list[str]):
     return False
 
 def is_fps(window_name_split: list[str]):
+    for s in window_name_split:
+        if s in FPS_NAMES: return True
     return False
 
 def punishment_factory(fail_severity: FailSeverity) -> Punishment:

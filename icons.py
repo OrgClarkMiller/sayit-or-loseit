@@ -2,12 +2,12 @@
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent
-ASSETS_DIR = ROOT_DIR / "assets"
+IMAGES_DIR = ROOT_DIR / "assets" / "image"
 
 class Icon:
     """A square image in assets/, drawn at size x size px."""
     def __init__(self, name: str, size: int):
-        self.path = ASSETS_DIR / name
+        self.path = IMAGES_DIR / name
         self.size = size  # one number: used in layout maths, so not a (w, h) tuple
 
     @property

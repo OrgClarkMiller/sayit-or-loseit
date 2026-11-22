@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from PIL import Image
+from icons import Icon
 
 import config
 from languages import LANGUAGES, LanguageProficiency
@@ -16,8 +17,10 @@ WIDTH, HEIGHT = 500, 300
 MIN_WORDS, MAX_WORDS, DEFAULT_MAX_WORDS = 1, 500, 15
 
 ASSETS = Path(__file__).parent.parent / "assets"  # window/ -> project root
-TOGGLE_ON_PATH  = ASSETS / "on-toggle-icon.png"
-TOGGLE_OFF_PATH = ASSETS / "off-toggle-icon.png"
+
+toggle_on_icon = Icon('on-toggle-icon.png', 0)
+toggle_off_icon = Icon('off-toggle-icon.png', 0)
+
 TOGGLE_SIZE = (60, 24)  # px; the source images are 100x40
 
 
@@ -43,8 +46,8 @@ class ConfigurationWindow(Window):
 
         # Loaded once and shared by every toggle. Keep references on self: Tk deletes an
         # image as soon as Python frees it, and any label still showing it goes blank.
-        self.toggle_on_icon  = _load_icon(self.root, TOGGLE_ON_PATH, TOGGLE_SIZE)
-        self.toggle_off_icon = _load_icon(self.root, TOGGLE_OFF_PATH, TOGGLE_SIZE)
+        self.toggle_on_icon  = _load_icon(self.root, toggle_on_icon.path, TOGGLE_SIZE)
+        self.toggle_off_icon = _load_icon(self.root, toggle_off_icon.path, TOGGLE_SIZE)
         self.on_begin()
         self.render()
 
