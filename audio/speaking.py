@@ -1,4 +1,6 @@
+from functools import lru_cache
 from pathlib import Path
+import threading
 
 import numpy as np
 from piper import PiperVoice
@@ -6,10 +8,6 @@ from languages import LANGUAGE_SHORT_FORM
 import subprocess
 import sys
 import sounddevice as sd
-
-voice: PiperVoice | None
-
-DEFAULT_LANG = 'English'
 
 # audio/ -> project root -> assets/voice-models
 VOICE_MODEL_DIR_PATH = Path(__file__).parent.parent / "assets" / "voice-models"
@@ -46,11 +44,23 @@ def get_voice_model(lang: str):
 
     return PiperVoice.load(voice_model_path)
 
-def load_voice(lang: str = DEFAULT_LANG):
-    global voice
-    voice = get_voice_model(lang)
+_voice_lock = threading.Lock()
 
-def _to_piper_phonemes(phonetics: list[str]) -> list[str]:
+@lru_cache(maxsize=None)
+def _cached_voice(lang: str) -> PiperVoice:
+    return get_voice_model(lang)
+
+def get_voice(lang: str) -> PiperVoice:
+    """The voice for a language, loaded (and downloaded if needed) on first use.
+
+    No module-level "current voice": callers hold the voice they're using, so switching
+    language on another thread can't swap it out halfway through speak(). The lock stops
+    two threads loading (or downloading) the same voice at once.
+    """
+    with _voice_lock:
+        return _cached_voice(lang)
+
+def _to_piper_phonemes(phonetics: list[str], voice: PiperVoice) -> list[str]:
     """['b', 'ɔ̃', 'ʒ', 'u', 'ʁ'] -> ['b', 'ɔ', '̃', 'ʒ', 'u', 'ʁ', '.']
 
     Piper's ids are per character, so multi-character phones ('oʊ', 'ɜː', 'ɔ̃') are split
@@ -63,12 +73,12 @@ def _to_piper_phonemes(phonetics: list[str]) -> list[str]:
     return chars
 
 
-def synthesize(phonetics: list[str]) -> np.ndarray:
+def synthesize(phonetics: list[str], voice: PiperVoice) -> np.ndarray:
     """Phonemes (as built by phon.generate) -> float32 audio at voice.config.sample_rate."""
-    ids = voice.phonemes_to_ids(_to_piper_phonemes(phonetics))
+    ids = voice.phonemes_to_ids(_to_piper_phonemes(phonetics, voice))
     return np.asarray(voice.phoneme_ids_to_audio(ids), dtype=np.float32)
 
-def speak(phonetics: list[str]):
-    """Play phonemes through the speakers. Blocks until playback finishes."""
-    sd.play(synthesize(phonetics), samplerate=voice.config.sample_rate)
+def speak(phonetics: list[str], voice: PiperVoice):
+    """Play phonemes through the speakers with the given voice. Blocks until playback finishes."""
+    sd.play(synthesize(phonetics, voice), samplerate=voice.config.sample_rate)
     sd.wait()

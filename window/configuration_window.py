@@ -142,13 +142,6 @@ class ConfigurationWindow(Window):
     def on_begin(self):
        pass
 
-    def update_lang_conf(self, conf: ConfigParser):
-        old = conf.get("Language", "target")
-        if old == self.lang.get(): return
-
-        conf["Language"]["target"] = self.lang.get()
-        self._app_context.on_change_target_language()
-
     # Also pass event up to the app context to reset
     def update_is_active_conf(self, conf: ConfigParser):
         conf["Challenge"]["is_active"] = str(self.challenge_active.get())  # configparser only stores strings
@@ -156,13 +149,14 @@ class ConfigurationWindow(Window):
 
     def on_close(self):
         print("Closing Config Window")
-        # Save any configuration
+        # Save any configuration. apply_config() below loads the new language's backends
+        # in the background, so nothing slow runs here and the window closes immediately.
         conf = config.get_config()
-        self.update_lang_conf(conf)
+        conf["Language"]["target"] = self.lang.get()
         conf["Language"]["proficiency"] = self.lang_proficiency.get()
         conf["Sentence"]["max_words"] = str(self.get_max_words())
         self.update_is_active_conf(conf)
         conf["Challenge"]["playback"] = str(self.challenge_playback.get())
         conf["AI"]["gemini_key"] = self.gemini_key.get().strip()  # pasted keys often carry stray whitespace
-        self._app_context.apply_config()  # the generator copies its settings, so hand it the new ones
+        self._app_context.apply_config()  # rebuilds the round settings from everything saved above
         super().on_close()  # destroys the root

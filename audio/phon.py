@@ -1,6 +1,7 @@
 from functools import lru_cache
 import json
 from pathlib import Path
+import threading
 
 import numpy as np
 import onnxruntime as ort
@@ -21,9 +22,15 @@ MODEL_DIR = Path(__file__).parent.parent / "assets" / "phoneme-model"  # audio/ 
 SAMPLE_RATE = 16_000  # the model only understands 16 kHz mono audio
 _SPECIAL_TOKENS = {"<pad>", "<s>", "</s>", "<unk>"}
 
+# espeak isn't thread-safe, and lru_cache doesn't lock while it builds a value (two threads
+# can both miss and both build). Settings are prepared on a background thread while the
+# worker may be phonemizing, so every espeak create and use goes through this lock.
+_espeak_lock = threading.Lock()
+_model_lock  = threading.Lock()  # same for the 1.3 GB model: load it once, not once per thread
+
 @lru_cache(maxsize=None)
 def _backend(lng_short: str) -> EspeakBackend:
-    # Starting espeak is slow, so keep one backend per language.
+    # Starting espeak is slow, so keep one backend per language. Call with _espeak_lock held.
     # No stress marks: phoneme recognition models (wav2vec2 espeak) don't output them,
     # and they'd show up as mismatches when comparing.
     return EspeakBackend(lng_short, preserve_punctuation=False, with_stress=False)
@@ -36,9 +43,13 @@ def download_model():
     for name in (MODEL_FILE, VOCAB_FILE):
         hf_hub_download(MODEL_REPO, name, local_dir=MODEL_DIR)
 
-@lru_cache(maxsize=1)
 def _model() -> tuple[ort.InferenceSession, dict[int, str]]:
-    # Slow to load, so do it once
+    with _model_lock:
+        return _load_model()
+
+@lru_cache(maxsize=1)
+def _load_model() -> tuple[ort.InferenceSession, dict[int, str]]:
+    # Slow to load, so do it once. Call through _model(), which holds the lock.
     download_model()
     session = ort.InferenceSession(str(MODEL_DIR / MODEL_FILE), providers=["CPUExecutionProvider"])
     vocab = json.loads((MODEL_DIR / VOCAB_FILE).read_text(encoding="utf-8"))
@@ -46,7 +57,9 @@ def _model() -> tuple[ort.InferenceSession, dict[int, str]]:
 
 RECORD_PADDING = 1.5        # reaction time before speaking + trailing silence
 
-def init_lang(lang: str): _backend(LANGUAGE_SHORT_FORM[lang])
+def init_lang(lang: str):
+    with _espeak_lock:
+        _backend(LANGUAGE_SHORT_FORM[lang])
 
 def init_model(): _model()
 
@@ -95,7 +108,8 @@ def _generate_from_sentence(sentence: str, target_language: str) -> list[str]:
     # Throws if unsupported language is entered
     lng_short = LANGUAGE_SHORT_FORM[target_language]
 
-    phonemized = _backend(lng_short).phonemize([sentence], separator=_SEPARATOR, strip=True)[0]
+    with _espeak_lock:
+        phonemized = _backend(lng_short).phonemize([sentence], separator=_SEPARATOR, strip=True)[0]
 
     res = [word.split() for word in phonemized.split(_WORD_SEP) if word.strip()]
     return _flatten(res)
