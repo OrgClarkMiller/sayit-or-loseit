@@ -291,6 +291,5 @@ class AppContext:
         # 7. Punish the user if they did a bad job
         if fail_severity > FailSeverity.CLOSE:
             pun = punishment_factory(fail_severity)
-            if pun is not None:
-                pun.punish()
+            if pun is not None: pun.punish()
             else: print("No punishment available")
