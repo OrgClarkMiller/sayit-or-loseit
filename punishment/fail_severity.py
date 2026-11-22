@@ -1,9 +1,10 @@
-from enum import Enum
+from enum import IntEnum
 
 import color_palette  # project root module; the app runs from the root, like `import config`
 
 
-class FailSeverity(Enum):
+class FailSeverity(IntEnum):
+    """Ordered from best to worst, so severities compare: MAJOR > CLOSE is True."""
     PERFECT = 1
     CLOSE   = 2
     MEDIUM  = 3
