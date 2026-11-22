@@ -4,7 +4,7 @@ from piper import PiperVoice
 from sentence_generation.sentence_generator import SentenceGenerator
 from tray import TrayManager
 from window import ConfigurationWindow
-from window.overlay_window import OverlayWindow, ProcessingIndicator
+from window.overlay_window import OverlayWindow, ProcessingIndicator, PunishmentIndicator
 import config
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
 import time
@@ -270,7 +270,6 @@ class AppContext:
         self.overlay.set_source_lang_sentence(gen.source_lang)
         self.overlay.set_target_lang_sentence(gen.target_lang)
 
-
         # 3. Generate phonetics of the generated sentence
         sent_phon = phon.generate(gen.target_lang, target_lang)
 
@@ -283,13 +282,19 @@ class AppContext:
         # 5. Get the estimated duration of how long the sentence should take to say
         est_dur = phon.speak_duration_estimate(sent_phon, proficiency)
 
-
         # 6. Listen on the mic for the users voice and compare its phonetics against the generated phonetics
         fail_severity = self._compare_voice_input(settings, sent_phon, est_dur)
         if not self._challenge_still_wanted(settings): return
 
-        # 7. Punish the user if they did a bad job
-        if fail_severity > FailSeverity.CLOSE:
-            pun = punishment_factory(fail_severity)
-            if pun is not None: pun.punish()
-            else: print("No punishment available")
+        # 7. Return if no punishment is needed
+        if fail_severity <= FailSeverity.CLOSE: return
+
+        # 8. Punish the user if they did a bad job
+        pun = punishment_factory(fail_severity)
+        if pun is None:
+            print("No punishment available")
+            return
+
+        self.overlay.set_punishment(pun.get_punishment_name(), fail_severity)
+        pun.punish()
+        self.overlay.set_punishment() # Clear out punishment

@@ -11,7 +11,7 @@ from PIL import Image, ImageSequence
 from .window import MARGIN, Window, WindowPosition
 from screen_io.screen_capture import exclude_from_capture, user32
 from .window_helpers import app_window_below, hwnd, is_app_window, make_click_through, round_corners
-from punishment.fail_severity import get_fail_severity, FAIL_SEVERITY_COLOR
+from punishment.fail_severity import FailSeverity, get_fail_severity, FAIL_SEVERITY_COLOR
 
 if TYPE_CHECKING:  # forward ref: app_context imports this module, so a real import would be circular
     from app_context import AppContext
@@ -36,6 +36,7 @@ MAX_TEXT_WIDTH = 460  # px, longer sentences wrap
 BAR_HEIGHT = 4        # px
 TICK_MS = 200         # how often the countdown redraws
 PROCESSING_HIDE_GRACE_MS = 400  # how long the spinner lingers in case another loading step follows
+PUNISHMENT_MIN_SHOW_MS = 2500   # instant punishments (a tab closing) still get read before the round's content returns
 
 
 mic_icon         = Icon("microphone-icon.png", 16)
@@ -121,6 +122,17 @@ class OverlayWindow(Window):
         "Generating sentence...". Everything else comes back when set to False."""
         self.call(self._set_processing, is_processing, message)
 
+    def set_punishment(self, name: str | None = None, severity: FailSeverity | None = None):
+        """Show only the punishment being applied, e.g. ("Close Media", SEVERE):
+
+                    PUNISHMENT  ·  SEVERE
+                         Close Media
+
+        Pass None to go back to the normal content (after a short minimum display time,
+        so instant punishments can still be read). The loading spinner takes priority
+        if both are on."""
+        self.call(self._set_punishment, name, severity)
+
     # ---- Tk thread ----
 
     def build(self):
@@ -137,6 +149,10 @@ class OverlayWindow(Window):
         self._loading_frame = 0
         self._spin_id: str | None = None
         self._hide_id: str | None = None  # pending end of the loading state (see _set_processing)
+
+        self._punishing = False
+        self._punish_shown_at = 0.0
+        self._punish_hide_id: str | None = None  # pending end of the punishment state
 
         # Translucent dark panel behind the text. A window can either key out one color
         # fully (the text window does that) or fade as a whole (which would fade the text
@@ -172,6 +188,8 @@ class OverlayWindow(Window):
         self._add_text("sentence", SENTENCE_FONT, color_palette.TEXT, wrap=MAX_TEXT_WIDTH)
         self._add_text("translation", SMALL_FONT, color_palette.MUTED, wrap=MAX_TEXT_WIDTH)
         self._add_text("processing", SMALL_FONT, color_palette.MUTED, wrap=MAX_TEXT_WIDTH)
+        self._add_text("punish_title", HEADER_FONT, color_palette.RED)
+        self._add_text("punish_name", SENTENCE_FONT, color_palette.TEXT, wrap=MAX_TEXT_WIDTH)
 
     def on_show(self):
         self.place_window_at(WindowPosition.LOWER_CENTER)
@@ -272,6 +290,33 @@ class OverlayWindow(Window):
             self._spin()
         self._layout()  # swaps between the spinner alone and the normal content
 
+    def _set_punishment(self, name: str | None, severity: FailSeverity | None):
+        if self._punish_hide_id is not None:  # a new punishment (or clear) replaces the pending hide
+            self.root.after_cancel(self._punish_hide_id)
+            self._punish_hide_id = None
+
+        if name is None:
+            if self._punishing:
+                shown_ms = (time.monotonic() - self._punish_shown_at) * 1000
+                self._punish_hide_id = self.root.after(max(0, int(PUNISHMENT_MIN_SHOW_MS - shown_ms)), self._end_punishment)
+            return
+
+        title = "PUNISHMENT" if severity is None else f"PUNISHMENT  ·  {severity.name}"
+        color = color_palette.RED if severity is None else FAIL_SEVERITY_COLOR[severity]
+        self._set_text("punish_title", title, color)
+        self._set_text("punish_name", name)
+        if not self._punishing:
+            self._punishing = True
+            self._punish_shown_at = time.monotonic()
+        self._layout()
+
+    def _end_punishment(self):
+        self._punish_hide_id = None
+        self._punishing = False
+        self._set_text("punish_title", "")
+        self._set_text("punish_name", "")
+        self._layout()
+
     def _spin(self):
         """Show the next frame of the loading GIF, then keep going until processing stops."""
         self.canvas.itemconfigure(self.loading_item, image=self.loading_frames[self._loading_frame])
@@ -321,18 +366,26 @@ class OverlayWindow(Window):
         """Position everything for the current content, then re-fit the window around it."""
         c = self.canvas
 
-        # While processing, only the spinner shows: everything else is hidden, and comes
-        # back unchanged once processing ends
-        content_state = "hidden" if self._processing else "normal"
+        # One state shows at a time: the spinner while processing, else the punishment
+        # while one is applied, else the round's content. The hidden ones come back
+        # unchanged when their turn comes.
+        if self._processing:
+            visible = {"processing"}
+        elif self._punishing:
+            visible = {"punish_title", "punish_name"}
+        else:
+            visible = set(self._texts) - {"processing", "punish_title", "punish_name"}
         for name, items in self._texts.items():
-            state = ("normal" if self._processing else "hidden") if name == "processing" else content_state
+            state = "normal" if name in visible else "hidden"
             for item, _, _ in items:
                 c.itemconfigure(item, state=state)
-        c.itemconfigure(self.mic_item, state=content_state)
-        if self._processing:
+        showing_content = not (self._processing or self._punishing)
+        c.itemconfigure(self.mic_item, state="normal" if showing_content else "hidden")
+        if not showing_content:
             for item in (self.rec_dot, self.bar_track, self.bar_fill):
                 c.itemconfigure(item, state="hidden")
 
+        if self._processing:
             # Spinner with the message to its right, centred together as one group
             icon = loading_gif_icon.size
             msg_w, msg_h = self._text_size("processing")
@@ -344,6 +397,19 @@ class OverlayWindow(Window):
             c.coords(self.loading_item, left, mid - icon / 2)
             self._place_text("processing", left + icon + 8, mid, "w")
             self._resize_canvas(width, row_h + 2 * PAD)
+            return
+
+        if self._punishing:
+            # Severity title, then the punishment's name under it, both centred
+            title_w, title_h = self._text_size("punish_title")
+            name_w, name_h = self._text_size("punish_name")
+            width = max(MIN_WIDTH, title_w, name_w) + 2 * PAD
+            y = PAD
+            self._place_text("punish_title", width / 2, y, "n")
+            y += title_h + 4
+            self._place_text("punish_name", width / 2, y, "n")
+            y += name_h
+            self._resize_canvas(width, y + PAD)
             return
 
         header_w, header_h = self._text_size("header")
@@ -435,4 +501,22 @@ class ProcessingIndicator:
     def __exit__(self, exc_type, exc_value, traceback):
         if self._overlay is not None:
             self._overlay.set_processing(False)
+        return False # Don't supress exceptions
+
+# Same idea for punishments: the overlay shows which punishment is being applied
+#for as long as the block runs (and a moment after, see PUNISHMENT_MIN_SHOW_MS)
+class PunishmentIndicator:
+    def __init__(self, overlay: OverlayWindow | None, name: str, severity: FailSeverity | None = None):
+        self._overlay = overlay
+        self._name = name
+        self._severity = severity
+
+    def __enter__(self):
+        if self._overlay is not None:
+            self._overlay.set_punishment(self._name, self._severity)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self._overlay is not None:
+            self._overlay.set_punishment(None)
         return False # Don't supress exceptions
