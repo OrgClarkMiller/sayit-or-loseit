@@ -10,11 +10,24 @@ MIN_FLICK = 25
 MAX_JUMPS = 8
 MIN_JUMPS = 3
 
+MIN_WASTE_DUR = 10
+MAX_WASTE_DUR = 30
+
 FPS_NAMES = set(['csgo', 'beanbattles'])
 def is_fps(window_name_split: list[str]):
     for s in window_name_split:
         if s in FPS_NAMES: return True
     return False
+
+class WasteAmmo(PunishAction):
+    def __init__(self):
+        super().__init__('Waste your bullets')
+
+    def punish(self):
+        dur = random.randint(MIN_WASTE_DUR, MAX_WASTE_DUR)
+        # Click dur times, so maybe shoot like 20 times, around there :)
+        for _ in range(dur):
+            mouse.click()
 
 class MouseFlickPunishAction(PunishAction):
     def __init__(self):
@@ -40,12 +53,11 @@ class JumpPunishAction(PunishAction):
             keyboard.press_and_release("space")
             time.sleep(1)
 
-# TODO: FINISH ACTIONS
 def _get_action(severity: FailSeverity):
     match severity:
-        case FailSeverity.SEVERE: return MouseFlickPunishAction()
+        case FailSeverity.SEVERE: return WasteAmmo()
         case FailSeverity.MAJOR: return JumpPunishAction()
-        case FailSeverity.MEDIUM: return random.choice([MouseFlickPunishAction()]) # Do a random action
+        case FailSeverity.MEDIUM: return random.choice([MouseFlickPunishAction()]) # Do a random action, TODO: DO ANOTHER ACTION
     raise ValueError(f"No media punishment for severity {severity.name}")
 
 class FPSPunishment(Punishment):
