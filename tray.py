@@ -9,7 +9,7 @@ from PIL import Image
 if TYPE_CHECKING:  # type hints only; a real import would be circular (app_context imports tray)
     from app_context import AppContext
 
-ICON_PATH = Path(__file__).parent / "assets" / "tray-icon.png"
+ICON_PATH = Path(__file__).parent / "assets" / "sili-logo.png"
 
 class TrayManager:
     def __init__(self, ctx: AppContext):

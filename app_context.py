@@ -8,8 +8,8 @@ import time
 from audio import phon, recording, speaking
 from punishment import FailSeverity, get_fail_severity, punishment_factory
 
-DEBUG_PHONETICS = False
-CONTEXT_READ_DELAY = 10
+CONTEXT_READ_DELAY       = 10
+VOICE_INPUT_MAX_ATTEMPTS = 3
 
 # Holds refs to all essential components such as
 #the tray, the different windows and things
@@ -34,7 +34,6 @@ class AppContext:
         self.config_window = None
 
         self.apply_config()
-        self._init_backends()
 
     def apply_config(self):
         """Push the current config into long-lived components. Call after config changes.
@@ -68,6 +67,7 @@ class AppContext:
         # The overlay isn't started here: _update_overlay starts it whenever it creates one
         self.tray_thread.start()
         self.worker_thread.start()
+        self._init_backends()
 
     def join(self):
         self.tray_thread.join()
@@ -103,6 +103,34 @@ class AppContext:
             return False
         return config.get_config().getboolean('Challenge', 'is_active')
 
+    # Retry n times until perfect
+    def _compare_voice_input(self, target_lang: str, sent_phonetics: list[str], estimated_duration: float) -> FailSeverity:
+        attempts = []
+
+        for _ in range(VOICE_INPUT_MAX_ATTEMPTS):
+            print('recording voice')
+            self.overlay.set_recording(True, estimated_duration)
+            wav = recording.record(estimated_duration)
+            self.overlay.set_recording(False)
+            print('finished recording voice')
+            if not self._challenge_still_wanted():  # turned off while recording: no score, no punishment
+                return FailSeverity.PERFECT
+            resp_phon = phon.generate(wav, target_lang)
+
+            percent_similar = phon.similarity(sent_phonetics, resp_phon)
+            self.overlay.set_similarity_percent(percent_similar)
+
+            fail_severity = get_fail_severity(percent_similar)
+            if fail_severity < FailSeverity.MEDIUM:
+                return fail_severity
+
+            attempts.append(fail_severity) # Add to attempts
+
+        if len(attempts) == 0:
+            return FailSeverity.PERFECT
+
+        return min(attempts) # Retrun only best attempt
+
     def _run_challenge(self):
         print('_run_challenge()')
         conf = config.get_config()
@@ -137,26 +165,13 @@ class AppContext:
 
         est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
 
-        print('recording voice')
-        self.overlay.set_recording(True, est_dur)
-        wav = recording.record(est_dur)
-        self.overlay.set_recording(False)
-        if not self._challenge_still_wanted():  # turned off while recording: no score, no punishment
-            return
-        resp_phon = phon.generate(wav, target_lang)
-
-        percent_similar = phon.similarity(sent_phon, resp_phon)
-        self.overlay.set_similarity_percent(percent_similar)
-
-        fail_severity = get_fail_severity(percent_similar)
+        fail_severity = self._compare_voice_input(target_lang, sent_phon, est_dur)
+        if not self._challenge_still_wanted(): return
 
         # Onlish punish if they actually deserve it
         if fail_severity > FailSeverity.CLOSE:
             pun = punishment_factory(fail_severity)
             pun.punish()
-
-        if DEBUG_PHONETICS:
-            speaking.speak(resp_phon)
 
     # The main work being done by the worker thread
     def worker(self):
