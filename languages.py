@@ -1,21 +1,62 @@
 from enum import StrEnum
 
-LANGUAGES = [
-    'English',
-    'French',
-    'Spanish',
-    'Dutch',
-    'Polish'
-]
-
-# espeak-ng language codes, as accepted by phonemizer's espeak backend
+# espeak-ng language codes, as accepted by phonemizer's espeak backend. Only languages
+# with a Piper voice trained on espeak phonemes (see audio/speaking.py), and each code is
+# the espeak voice that Piper model was trained with. Left out for having no such voice:
+# Hebrew, Japanese, Lithuanian and Thai (their Piper voices use other phonemizers).
 LANGUAGE_SHORT_FORM = {
-    'English': 'en-us',
-    'French': 'fr-fr',
-    'Spanish': 'es',
-    'Dutch': 'nl',
-    'Polish': 'pl'
+    'Albanian':           'sq',
+    'Arabic':             'ar',
+    'Armenian':           'hy',
+    'Basque':             'eu',
+    'Bengali':            'bn',
+    'Bulgarian':          'bg',
+    'Catalan':            'ca',
+    'Chinese (Mandarin)': 'cmn',
+    'Czech':              'cs',
+    'Danish':             'da',
+    'Dutch':              'nl',
+    'English':            'en-us',
+    'Estonian':           'et',
+    'Finnish':            'fi',
+    'French':             'fr-fr',
+    'Georgian':           'ka',
+    'German':             'de',
+    'Greek':              'el',
+    'Hindi':              'hi',
+    'Hungarian':          'hu',
+    'Icelandic':          'is',
+    'Indonesian':         'id',
+    'Italian':            'it',
+    'Kazakh':             'kk',
+    'Korean':             'ko',
+    'Kurdish (Kurmanji)': 'ku',
+    'Latvian':            'lv',
+    'Luxembourgish':      'lb',
+    'Malayalam':          'ml',
+    'Marathi':            'mr',
+    'Nepali':             'ne',
+    'Norwegian':          'nb',
+    'Persian':            'fa',
+    'Polish':             'pl',
+    'Portuguese':         'pt-br',  # Brazilian
+    'Romanian':           'ro',
+    'Russian':            'ru',
+    'Serbian':            'sr',
+    'Slovak':             'sk',
+    'Slovenian':          'sl',
+    'Spanish':            'es',
+    'Swahili':            'sw',
+    'Swedish':            'sv',
+    'Telugu':             'te',
+    'Turkish':            'tr',
+    'Ukrainian':          'uk',
+    'Urdu':               'ur',
+    'Vietnamese':         'vi',
+    'Welsh':              'cy',
 }
+
+LANGUAGES = list(LANGUAGE_SHORT_FORM)  # the names, for the settings dropdowns
 
 class LanguageProficiency(StrEnum):
     """Proficiency levels, lowest to highest: a beginner level, then the CEFR levels."""
