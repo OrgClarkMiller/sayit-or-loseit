@@ -5,12 +5,13 @@ from typing import Callable
 from audio import phon, recording, speaking
 from punishment import FailSeverity, get_fail_severity, punishment_factory
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
-from window.overlay import ChallengeState, OverlayWindow, ProcessingIndicator, ProcessingState, PunishmentIndicator, Recording, SuccessState
+from window.overlay import ChallengeState, OverlayWindow, ProcessingIndicator, ProcessingState, PunishmentIndicator, PunishmentState, Recording, SuccessState
 
 from .settings import ChallengeSettings
 
 SCORE_SHOW_SECONDS       = 1.5  # pause after a failed attempt so the percent can be read
 WAITING_MESSAGE          = "Waiting for next round"
+PUNISHMENTS_OFF_MESSAGE  = "Punishments Off"
 
 
 class ChallengeRound:
@@ -108,6 +109,11 @@ class ChallengeRound:
         return max(attempts)  # only the best attempt counts
 
     def _punish(self, fail_severity: FailSeverity):
+        if not self.settings.use_punishments:
+            # Still show the round failed (and how badly), just don't do anything to the user
+            self.overlay.render_state(PunishmentState(PUNISHMENTS_OFF_MESSAGE, fail_severity))
+            return
+
         pun = punishment_factory(fail_severity)
         if pun is None:
             print("No punishment available")

@@ -23,6 +23,7 @@ class ChallengeSettings:
     target_lang: str
     proficiency: str
     playback: bool
+    use_punishments: bool  # False: a failed round shows its severity but nothing is done to the user
     max_attempts: int  # recordings per round, including the first
     generator: SentenceGenerator
     voice: PiperVoice  # loaded for target_lang, so playback always matches the sentence
@@ -67,6 +68,7 @@ class SettingsStore:
             max_words=conf.getint("Sentence", "max_words"),
             gemini_api_key=conf.get("AI", "gemini_key"),
             playback=conf.getboolean("Challenge", "playback"),
+            use_punishments=conf.getboolean("Challenge", "use_punishments"),
             num_tries=conf.getint("Challenge", "num_tries"),
         )
         with self._version_lock:
@@ -108,6 +110,7 @@ class SettingsStore:
                     target_lang=target_lang,
                     proficiency=values["proficiency"],
                     playback=values["playback"],
+                    use_punishments=values["use_punishments"],
                     max_attempts=max(1, values["num_tries"]),  # never 0: a hand-edited conf.ini could say so
                     generator=SentenceGenerator(
                         source_lang=values["source_lang"],

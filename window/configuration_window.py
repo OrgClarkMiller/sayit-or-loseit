@@ -24,7 +24,6 @@ toggle_off_icon = Icon('off-toggle-icon.png', 0)
 
 TOGGLE_SIZE = (60, 24)  # px; the source images are 100x40
 
-
 def _load_icon(master, path: Path, size: tuple[int, int]) -> tk.PhotoImage:
     """A PNG resized with PIL, as a plain tk.PhotoImage (not ImageTk) so
     Window._release_tk frees it on the Tk thread."""
@@ -44,6 +43,7 @@ class ConfigurationWindow(Window):
         self.max_words        = tk.IntVar(self.root, value=conf.getint("Sentence", "max_words"))
         self.num_tries        = tk.IntVar(self.root, value=conf.getint("Challenge", "num_tries"))
         self.challenge_active = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "is_active"))
+        self.punishments_active = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "use_punishments"))
         self.challenge_playback = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "playback"))
 
         # Loaded once and shared by every toggle. Keep references on self: Tk deletes an
@@ -69,12 +69,13 @@ class ConfigurationWindow(Window):
         header = tk.Label(self.root, text="Configuration", font=("Segoe UI", 12, "bold"))
         header.grid(row=0, column=0, columnspan=2, pady=(10, 15))
         self.render_is_active(row=1)
-        self.render_challenge_playback(row=2)
-        self.render_lang_combo(row=3)
-        self.render_proficiency_combo(row=4)
-        self.render_max_words(row=5)
-        self.render_num_tries(row=6)
-        self.render_gemini_key(row=7)
+        self.render_use_punishments(row=2)
+        self.render_challenge_playback(row=3)
+        self.render_lang_combo(row=4)
+        self.render_proficiency_combo(row=5)
+        self.render_max_words(row=6)
+        self.render_num_tries(row=7)
+        self.render_gemini_key(row=8)
 
     def render_lang_combo(self, row):
         self.render_input_label(row, "Target Language:")
@@ -125,6 +126,9 @@ class ConfigurationWindow(Window):
     def render_is_active(self, row):
         self.render_toggle(row, "Challenges Active:", self.challenge_active)
 
+    def render_use_punishments(self, row):
+        self.render_toggle(row, "Enable Punishments:", self.punishments_active)
+
     def render_challenge_playback(self, row):
         self.render_toggle(row, "Challenge Audio Playback:", self.challenge_playback)
 
@@ -169,6 +173,7 @@ class ConfigurationWindow(Window):
         conf["Challenge"]["is_active"] = str(self.challenge_active.get())  # configparser only stores strings
         self._app_context.on_change_challenge_status()
 
+
     def on_close(self):
         print("Closing Config Window")
         # Save any configuration. apply_config() below loads the new language's backends
@@ -180,6 +185,7 @@ class ConfigurationWindow(Window):
         conf["Challenge"]["num_tries"] = str(self.get_num_tries())
         self.update_is_active_conf(conf)
         conf["Challenge"]["playback"] = str(self.challenge_playback.get())
+        conf["Challenge"]["use_punishments"] = str(self.punishments_active.get())
         conf["AI"]["gemini_key"] = self.gemini_key.get().strip()  # pasted keys often carry stray whitespace
         self._app_context.apply_config()  # rebuilds the round settings from everything saved above
         super().on_close()  # destroys the root
