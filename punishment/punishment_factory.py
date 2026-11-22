@@ -6,7 +6,7 @@ from .punishment import Punishment
 # punishment, so "from window import ..." would hit a half-loaded window package.
 from window.window_helpers import get_focused_details
 
-MEDIA_NAMES = set(['youtube', 'netflix', 'disneyplus'])
+MEDIA_NAMES = set(['youtube', 'netflix', 'disneyplus', 'anime', 'cartoon', 'wcofun'])
 
 def is_media(window_name_split: list[str]):
     for s in window_name_split:
