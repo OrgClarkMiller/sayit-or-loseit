@@ -57,6 +57,10 @@ class AppContext:
         # CONTEXT_READ_DELAY. An Event, not a shared timestamp: the worker also writes its
         # timestamp after each round, which would overwrite a reset made meanwhile.
         self._run_now = threading.Event()
+        # Wakes the worker from its 1 s sleep early: when settings become ready, so the
+        # round starts straight after "Loading Language" (no gap showing the idle overlay),
+        # and on quit.
+        self._wake = threading.Event()
 
         # The settings rounds use. None until the first build finishes (the worker skips
         # rounds until then). Only ever replaced whole, never edited.
@@ -106,9 +110,6 @@ class AppContext:
                 return
             target_lang = values["target_lang"]
             print(f"Loading settings for {target_lang}")
-            # Create the overlay if it's destroyed
-            if self.overlay is None:
-                self.overlay = OverlayWindow(self)
             with ProcessingIndicator(self.overlay, "Loading Language"):
                 phon.init_lang(target_lang)  # warm up espeak so the first round isn't slow
                 settings = ChallengeSettings(
@@ -127,11 +128,13 @@ class AppContext:
                 )
                 if self._is_latest_settings(version):
                     self.settings = settings  # one assignment: rounds see all old or all new
+                    self._wake.set()  # let the worker start a round now, not up to 1 s later
                     print(f"Settings for {target_lang} ready")
 
     def on_change_challenge_status(self):
         print('on_change_challenge_status()')
         self._run_now.set()  # make the challenge start right away
+        self._wake.set()
 
     def start(self):
         # The overlay isn't started here: _update_overlay starts it whenever it creates one
@@ -149,6 +152,7 @@ class AppContext:
 
     def stop(self):
         self.stop_event.set()  # closes the tray, the worker loop and the overlay
+        self._wake.set()       # the worker sleeps on _wake, so wake it to see stop_event
 
     def launch_config_window(self):
         """Show the configuration window. Does nothing if it's already open."""
@@ -163,6 +167,9 @@ class AppContext:
         """Worker loop: runs until the user clicks Quit in the tray."""
         prev_challenge_time = None  # only this thread uses it; others ask via _run_now
         while not self.stop_event.is_set():
+            # Cleared before looking at any state: a wake-up arriving during this pass stays
+            # set, so the wait below returns at once and the next pass sees the change.
+            self._wake.clear()
             # TODO: poll / handle system events here
             print("checking for events...")
 
@@ -183,9 +190,9 @@ class AppContext:
                     self._run_challenge(settings)
                     prev_challenge_time = now
 
-            # Like sleep(1), but returns immediately when stop_event is set,
-            # so Quit doesn't have to wait for the sleep to finish.
-            self.stop_event.wait(1)
+            # Like sleep(1), but returns immediately when woken: on quit, when new settings
+            # are ready, or when the config window asks for a round now.
+            self._wake.wait(1)
 
         print("worker shutting down")
 

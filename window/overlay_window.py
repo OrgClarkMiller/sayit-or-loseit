@@ -3,6 +3,7 @@ import io
 import time
 from pathlib import Path
 import tkinter as tk
+from typing import TYPE_CHECKING
 import color_palette  # project root module, not part of the window package
 from icons import Icon, GifIcon
 
@@ -11,6 +12,9 @@ from .window import MARGIN, Window, WindowPosition
 from screen_io.screen_capture import exclude_from_capture, user32
 from .window_helpers import app_window_below, hwnd, is_app_window, make_click_through, round_corners
 from punishment.fail_severity import get_fail_severity, FAIL_SEVERITY_COLOR
+
+if TYPE_CHECKING:  # forward ref: app_context imports this module, so a real import would be circular
+    from app_context import AppContext
 
 # Keyed out by the window: anything exactly this color is see-through. Near-black rather
 # than magenta because Windows anti-aliases text against the background color, so text
@@ -31,6 +35,7 @@ MIN_WIDTH = 300       # px, so short sentences don't make a tiny, jumpy overlay
 MAX_TEXT_WIDTH = 460  # px, longer sentences wrap
 BAR_HEIGHT = 4        # px
 TICK_MS = 200         # how often the countdown redraws
+PROCESSING_HIDE_GRACE_MS = 400  # how long the spinner lingers in case another loading step follows
 
 
 mic_icon         = Icon("microphone-icon.png", 16)
@@ -79,6 +84,13 @@ class OverlayWindow(Window):
     It closes when the app's stop_event is set.
     """
 
+    def __init__(self, app_context: "AppContext", loading_message: str | None = "Loading..."):
+        """It opens in the loading state (spinner + loading_message) until something calls
+        set_processing(False), e.g. a ProcessingIndicator block ending. Pass
+        loading_message=None to open straight to the normal content instead."""
+        super().__init__(app_context)
+        self._initial_loading_message = loading_message
+
     # ---- Thread-safe API ----
 
     def set_language_label(self, language: str, level: str):
@@ -124,6 +136,7 @@ class OverlayWindow(Window):
         self._processing = False
         self._loading_frame = 0
         self._spin_id: str | None = None
+        self._hide_id: str | None = None  # pending end of the loading state (see _set_processing)
 
         # Translucent dark panel behind the text. A window can either key out one color
         # fully (the text window does that) or fade as a whole (which would fade the text
@@ -147,7 +160,10 @@ class OverlayWindow(Window):
         self.rec_dot      = c.create_oval(0, 0, 0, 0, fill=color_palette.RED, outline=color_palette.OUTLINE, state="hidden")
         self.bar_track    = c.create_rectangle(0, 0, 0, 0, fill=color_palette.TRACK, outline=color_palette.OUTLINE, state="hidden")
         self.bar_fill     = c.create_rectangle(0, 0, 0, 0, fill=color_palette.GREEN, width=0, state="hidden")
-        self._layout()
+        if self._initial_loading_message is not None:
+            self._set_processing(True, self._initial_loading_message)  # also lays out
+        else:
+            self._layout()
 
     def render_headers(self):
         self._add_text("header", HEADER_FONT, color_palette.MUTED)
@@ -221,7 +237,27 @@ class OverlayWindow(Window):
         self._layout()
 
     def _set_processing(self, is_processing: bool, message: str = ""):
-        self._set_text("processing", message if is_processing else "")
+        if not is_processing:
+            # Don't drop the spinner straight away: one loading step often ends just before
+            # the next begins ("Loading Language" -> "Generating Sentence"), and showing the
+            # normal content in between flashes it for a frame. If the next step arrives
+            # within the grace period, only the message changes.
+            if self._processing and self._hide_id is None:
+                self._hide_id = self.root.after(PROCESSING_HIDE_GRACE_MS, self._end_processing)
+            return
+
+        if self._hide_id is not None:  # a step ended moments ago: carry straight on
+            self.root.after_cancel(self._hide_id)
+            self._hide_id = None
+        self._set_text("processing", message)
+        self._apply_processing(True)
+
+    def _end_processing(self):
+        self._hide_id = None
+        self._set_text("processing", "")
+        self._apply_processing(False)
+
+    def _apply_processing(self, is_processing: bool):
         if is_processing == self._processing:
             self._layout()  # only the message changed: re-fit, but don't restart the animation
             return
@@ -387,14 +423,16 @@ class OverlayWindow(Window):
 # Allows you to create a with block around a long-running operation
 #to have the overlay display a loading gif until the operation completes
 class ProcessingIndicator:
-    def __init__(self, overlay: OverlayWindow, message: str = ""):
+    def __init__(self, overlay: OverlayWindow | None, message: str = ""):
         self._overlay = overlay
         self._message = message
 
     def __enter__(self):
-        self._overlay.set_processing(True, self._message)
+        if self._overlay is not None:
+            self._overlay.set_processing(True, self._message)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._overlay.set_processing(False)
+        if self._overlay is not None:
+            self._overlay.set_processing(False)
         return False # Don't supress exceptions
