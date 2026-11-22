@@ -1,21 +1,10 @@
 import keyboard
-from .punishment import Punishment, FailSeverity
+from .punishment import Punishment, FailSeverity, PunishAction
 import time
-from enum import Enum
-from abc import ABC, abstractmethod
-
-class PunishAction(ABC):
-    @abstractmethod
-    def get_name() -> str:
-        pass
-
-    @abstractmethod
-    def punish():
-        pass
 
 class SpamSpacePunishAction(PunishAction):
-    def get_name(self):
-        return 'Rapid Media Pause'
+    def __init__(self):
+        super().__init__('Rapid Media Pause')
 
     def punish(self):
         for _ in range(4): # Must be even for unpause event
@@ -23,8 +12,8 @@ class SpamSpacePunishAction(PunishAction):
             time.sleep(1)
 
 class CloseMediaPunishAction(PunishAction):
-    def get_name(self):
-        return 'Close Media'
+    def __init__(self):
+        super().__init__('Close Media')
 
     def punish(self):
         keyboard.send('ctrl+w') # Closes browser tab
