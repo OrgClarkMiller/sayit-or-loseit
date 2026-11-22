@@ -19,9 +19,8 @@ def punishment_factory(fail_severity: FailSeverity) -> Punishment:
 
     # Split up the window title into an array of lowercase strings
     wnd_name_splt = [s.lower() for s in wnd_dets.title.split(' ')]
-    print(wnd_name_splt)
 
     print(f"Creating punishment for {wnd_dets.title}")
 
-    if is_media(wnd_dets.title):
+    if is_media(wnd_name_splt):
         return MediaPunishment(fail_severity)

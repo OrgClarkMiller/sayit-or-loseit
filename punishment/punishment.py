@@ -2,9 +2,12 @@ from abc import ABC, abstractmethod
 from .fail_severity import FailSeverity
 
 class Punishment(ABC):
-    def __init__(self, fail_severity: FailSeverity, duration: float):
+    def __init__(self, fail_severity: FailSeverity):
         self.severity = fail_severity
-        self.duration = duration
+
+    @abstractmethod
+    def get_punishment_name(self) -> str:
+        pass
 
     @abstractmethod
     def punish(self):

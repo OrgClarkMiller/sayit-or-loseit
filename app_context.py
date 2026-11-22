@@ -6,7 +6,7 @@ import config
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
 import time
 from audio import phon, recording, speaking
-from punishment import get_fail_severity, punishment_factory
+from punishment import FailSeverity, get_fail_severity, punishment_factory
 
 DEBUG_PHONETICS = False
 CONTEXT_READ_DELAY = 10
@@ -110,10 +110,14 @@ class AppContext:
         s_ctx = sentence_context_factory(ContextKind.SCREEN_IMAGE)
         if s_ctx is None:
             return
+
         # 1. Generate Sentence and phonetics
+        print('Generating Sentence')
         gen = self.generator.generate(s_ctx)
         if not self._challenge_still_wanted():  # the Gemini call can take a few seconds
             return
+
+        print('Sentence Generated')
 
         target_lang = conf['Language']['target']
         proficieny = conf['Language']['proficiency']
@@ -122,7 +126,9 @@ class AppContext:
         self.overlay.set_source_lang_sentence(gen.source_lang)
         self.overlay.set_target_lang_sentence(gen.target_lang)
 
+        print('Generating phonetics')
         sent_phon = phon.generate(gen.target_lang, target_lang)
+        print('Phonetics generated')
 
         if conf.getboolean("Challenge", "playback"):
             speaking.speak(sent_phon)
@@ -143,8 +149,11 @@ class AppContext:
         self.overlay.set_similarity_percent(percent_similar)
 
         fail_severity = get_fail_severity(percent_similar)
-        pun = punishment_factory(fail_severity)
-        pun.punish()
+
+        # Onlish punish if they actually deserve it
+        if fail_severity > FailSeverity.CLOSE:
+            pun = punishment_factory(fail_severity)
+            pun.punish()
 
         if DEBUG_PHONETICS:
             speaking.speak(resp_phon)
