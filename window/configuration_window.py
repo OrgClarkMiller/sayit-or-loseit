@@ -15,6 +15,7 @@ from .window import Window, WindowPosition
 
 WIDTH, HEIGHT = 500, 300
 MIN_WORDS, MAX_WORDS, DEFAULT_MAX_WORDS = 1, 500, 15
+MIN_TRIES, MAX_TRIES, DEFAULT_TRIES = 1, 5, 3
 
 ASSETS = Path(__file__).parent.parent / "assets"  # window/ -> project root
 
@@ -41,6 +42,7 @@ class ConfigurationWindow(Window):
         self.lang             = tk.StringVar(self.root, value=conf.get("Language", "target"))
         self.lang_proficiency = tk.StringVar(self.root, value=conf.get("Language", "proficiency"))
         self.max_words        = tk.IntVar(self.root, value=conf.getint("Sentence", "max_words"))
+        self.num_tries        = tk.IntVar(self.root, value=conf.getint("Challenge", "num_tries"))
         self.challenge_active = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "is_active"))
         self.challenge_playback = tk.BooleanVar(self.root, value=conf.getboolean("Challenge", "playback"))
 
@@ -71,7 +73,8 @@ class ConfigurationWindow(Window):
         self.render_lang_combo(row=3)
         self.render_proficiency_combo(row=4)
         self.render_max_words(row=5)
-        self.render_gemini_key(row=6)
+        self.render_num_tries(row=6)
+        self.render_gemini_key(row=7)
 
     def render_lang_combo(self, row):
         self.render_input_label(row, "Target Language:")
@@ -81,6 +84,14 @@ class ConfigurationWindow(Window):
     def render_proficiency_combo(self, row):
         self.render_input_label(row, "Target Language Proficiency:")
         ttk.Combobox(self.root, textvariable=self.lang_proficiency, values=[level.value for level in LanguageProficiency], state="readonly")\
+            .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
+
+    def render_num_tries(self, row):
+        self.render_input_label(row, "Tries per Challenge:")
+        # Only allow digits to be typed (the empty string lets the user clear the box while editing)
+        digits_only = (self.root.register(lambda text: text == "" or text.isdigit()), "%P")
+        ttk.Spinbox(self.root, textvariable=self.num_tries, from_=MIN_TRIES, to=MAX_TRIES, increment=1,
+                    validate="key", validatecommand=digits_only)\
             .grid(row=row, column=1, sticky="ew", padx=(5, 10), pady=5)
 
     def render_max_words(self, row):
@@ -142,6 +153,14 @@ class ConfigurationWindow(Window):
             return DEFAULT_MAX_WORDS
         return max(MIN_WORDS, min(MAX_WORDS, value))
 
+    def get_num_tries(self) -> int:
+        """The entered try count, clamped to the allowed range (default if the box is empty)."""
+        try:
+            value = self.num_tries.get()
+        except tk.TclError:  # box left empty
+            return DEFAULT_TRIES
+        return max(MIN_TRIES, min(MAX_TRIES, value))
+
     def on_begin(self):
        pass
 
@@ -158,6 +177,7 @@ class ConfigurationWindow(Window):
         conf["Language"]["target"] = self.lang.get()
         conf["Language"]["proficiency"] = self.lang_proficiency.get()
         conf["Sentence"]["max_words"] = str(self.get_max_words())
+        conf["Challenge"]["num_tries"] = str(self.get_num_tries())
         self.update_is_active_conf(conf)
         conf["Challenge"]["playback"] = str(self.challenge_playback.get())
         conf["AI"]["gemini_key"] = self.gemini_key.get().strip()  # pasted keys often carry stray whitespace

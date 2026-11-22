@@ -23,6 +23,7 @@ class ChallengeSettings:
     target_lang: str
     proficiency: str
     playback: bool
+    max_attempts: int  # recordings per round, including the first
     generator: SentenceGenerator
     voice: PiperVoice  # loaded for target_lang, so playback always matches the sentence
     version: int       # which apply_config() these came from; older ones are out of date
@@ -66,6 +67,7 @@ class SettingsStore:
             max_words=conf.getint("Sentence", "max_words"),
             gemini_api_key=conf.get("AI", "gemini_key"),
             playback=conf.getboolean("Challenge", "playback"),
+            num_tries=conf.getint("Challenge", "num_tries"),
         )
         with self._version_lock:
             if values == self._requested_values:
@@ -106,6 +108,7 @@ class SettingsStore:
                     target_lang=target_lang,
                     proficiency=values["proficiency"],
                     playback=values["playback"],
+                    max_attempts=max(1, values["num_tries"]),  # never 0: a hand-edited conf.ini could say so
                     generator=SentenceGenerator(
                         source_lang=values["source_lang"],
                         target_lang=target_lang,

@@ -1,6 +1,7 @@
 import threading
 import time
 from typing import Callable
+import random
 
 import config
 from window.overlay_window import OverlayWindow
@@ -8,8 +9,9 @@ from window.overlay_window import OverlayWindow
 from .round import ChallengeRound
 from .settings import ChallengeSettings, SettingsStore
 
-CONTEXT_READ_DELAY = 10  # seconds between rounds
-
+# seconds between rounds
+MIN_ROUND_DELAY = 5
+MAX_ROUND_DELAY = 20
 
 class ChallengeScheduler:
     """The worker loop: decides when a round runs, and runs it.
@@ -22,12 +24,13 @@ class ChallengeScheduler:
     """
 
     def __init__(self, stop_event: threading.Event, settings: SettingsStore,
-                 update_overlay: Callable[[bool], OverlayWindow | None],
-                 delay: float = CONTEXT_READ_DELAY):
+            update_overlay: Callable[[bool], OverlayWindow | None],
+            min_delay: float = MIN_ROUND_DELAY, max_delay: float = MAX_ROUND_DELAY):
         self._stop_event = stop_event
         self._settings = settings
         self._update_overlay = update_overlay
-        self._delay = delay
+        self._min_delay = min_delay
+        self._max_delay = max_delay
 
         # Set to start a round right away instead of waiting out the delay. An Event,
         # not a shared timestamp: the loop also writes its timestamp after each round,
@@ -54,6 +57,10 @@ class ChallengeScheduler:
     def run(self):
         """Runs until stop_event is set. The worker thread's target."""
         prev_challenge_time = None
+
+        get_rand_delay = lambda: random.randint(self._min_delay, self._max_delay)
+
+        delay = get_rand_delay()
         while not self._stop_event.is_set():
             # Cleared before looking at any state: a wake-up arriving during this pass stays
             # set, so the wait below returns at once and the next pass sees the change.
@@ -64,11 +71,12 @@ class ChallengeScheduler:
             settings = self._settings.current()  # taken once, for this whole round
             if is_active and settings is not None and overlay is not None:
                 now = time.perf_counter()
-                due = prev_challenge_time is None or now - prev_challenge_time > self._delay
+                due = prev_challenge_time is None or now - prev_challenge_time > delay
                 if due or self._run_now.is_set():
                     self._run_now.clear()
                     ChallengeRound(settings, overlay, lambda: self._still_wanted(settings)).run()
                     prev_challenge_time = now
+                    delay = get_rand_delay()
 
             self._wake.wait(1)
 

@@ -20,6 +20,7 @@ DEFAULTS: dict[str, dict[str, str]] = {
         "gemini_key": "",
     },
     "Challenge": {
+        "num_tries": "3",  # recordings per round, including the first
         "is_active": "False",  # off until the user has entered a Gemini key and turned it on
         "playback": "True",
     },

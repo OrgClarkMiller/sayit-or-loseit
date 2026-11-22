@@ -8,7 +8,6 @@ from window.overlay_window import OverlayWindow, ProcessingIndicator
 
 from .settings import ChallengeSettings
 
-VOICE_INPUT_MAX_ATTEMPTS = 3
 SCORE_SHOW_SECONDS       = 1.5  # pause after a failed attempt so the percent can be read
 
 
@@ -68,15 +67,16 @@ class ChallengeRound:
             self._punish(fail_severity)
 
     def _score_attempts(self, sent_phonetics: list[str], estimated_duration: float) -> FailSeverity:
-        """Up to VOICE_INPUT_MAX_ATTEMPTS tries; stops at the first good enough one.
+        """Up to settings.max_attempts tries; stops at the first good enough one.
         Returns the best attempt's severity."""
         attempts = []
+        max_attempts = self.settings.max_attempts
 
-        for attempt_num in range(1, VOICE_INPUT_MAX_ATTEMPTS + 1):
+        for attempt_num in range(1, max_attempts + 1):
             if not self.still_wanted():
                 return FailSeverity.PERFECT  # TODO: Any potential cleanup
 
-            self.overlay.set_attempt(attempt_num, VOICE_INPUT_MAX_ATTEMPTS)
+            self.overlay.set_attempt(attempt_num, max_attempts)
             self.overlay.set_recording(True, estimated_duration)
             wav = recording.record(estimated_duration)
             self.overlay.set_recording(False)
