@@ -1,18 +1,15 @@
 from enum import StrEnum
 
-# espeak-ng language codes, as accepted by phonemizer's espeak backend. Only languages
-# with a Piper voice trained on espeak phonemes (see audio/speaking.py), and each code is
-# the espeak voice that Piper model was trained with. Left out for having no such voice:
-# Hebrew, Japanese, Lithuanian and Thai (their Piper voices use other phonemizers).
+# espeak-ng language codes, as accepted by phonemizer's espeak backend, and each the espeak
+# voice its Piper model was trained with (see audio/speaking.py).
+#
+# Only languages written in the Latin alphabet (accents are fine, e.g. Polish, Czech,
+# Vietnamese), so the sentence can be read off the overlay without learning a new script.
+# Also needs a Piper voice trained on espeak phonemes, which rules out Lithuanian.
 LANGUAGE_SHORT_FORM = {
     'Albanian':           'sq',
-    'Arabic':             'ar',
-    'Armenian':           'hy',
     'Basque':             'eu',
-    'Bengali':            'bn',
-    'Bulgarian':          'bg',
     'Catalan':            'ca',
-    'Chinese (Mandarin)': 'cmn',
     'Czech':              'cs',
     'Danish':             'da',
     'Dutch':              'nl',
@@ -20,38 +17,24 @@ LANGUAGE_SHORT_FORM = {
     'Estonian':           'et',
     'Finnish':            'fi',
     'French':             'fr-fr',
-    'Georgian':           'ka',
     'German':             'de',
-    'Greek':              'el',
-    'Hindi':              'hi',
     'Hungarian':          'hu',
     'Icelandic':          'is',
     'Indonesian':         'id',
     'Italian':            'it',
-    'Kazakh':             'kk',
-    'Korean':             'ko',
     'Kurdish (Kurmanji)': 'ku',
     'Latvian':            'lv',
     'Luxembourgish':      'lb',
-    'Malayalam':          'ml',
-    'Marathi':            'mr',
-    'Nepali':             'ne',
     'Norwegian':          'nb',
-    'Persian':            'fa',
     'Polish':             'pl',
     'Portuguese':         'pt-br',  # Brazilian
     'Romanian':           'ro',
-    'Russian':            'ru',
-    'Serbian':            'sr',
     'Slovak':             'sk',
     'Slovenian':          'sl',
     'Spanish':            'es',
     'Swahili':            'sw',
     'Swedish':            'sv',
-    'Telugu':             'te',
     'Turkish':            'tr',
-    'Ukrainian':          'uk',
-    'Urdu':               'ur',
     'Vietnamese':         'vi',
     'Welsh':              'cy',
 }
