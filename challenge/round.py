@@ -50,29 +50,23 @@ class ChallengeRound:
         # 3. Phonetics of the generated sentence
         sent_phon = phon.generate(gen.target_lang, self.settings.target_lang)
 
-        # 4. If playback is enabled, say the sentence in the language's voice
-        if self.settings.playback:
-            speaking.speak(sent_phon, self.settings.voice)
-            if not self.still_wanted():  # don't start recording if they turned it off mid-playback
-                return
-
-        # 5. How long the sentence should take to say
+        # 4. How long the sentence should take to say
         est_dur = phon.speak_duration_estimate(sent_phon, self.settings.proficiency)
 
-        # 6. Record the user and compare their phonetics against the sentence's
+        # 5. Record the user and compare their phonetics against the sentence's
         percent_similar = self._score_attempts(sent_phon, est_dur)
         if not self.still_wanted():
             return
 
         fail_severity = get_fail_severity(percent_similar)
 
-        # 7. Punish the user if they did a bad job
+        # 6. Punish the user if they did a bad job
         if fail_severity > FailSeverity.CLOSE:
             self._punish(fail_severity)
         else:
             self.overlay.render_state(SuccessState.from_challenge(self._state, percent_similar))
 
-        # 8. Spinner until the next round. The result above holds the screen for its
+        # 7. Spinner until the next round. The result above holds the screen for its
         # RESULT_SHOW_MS first (see hold_ms), so this only appears once that's up.
         self.overlay.render_state(ProcessingState(WAITING_MESSAGE))
 
@@ -84,6 +78,12 @@ class ChallengeRound:
 
         for attempt_num in range(1, max_attempts + 1):
             if not self.still_wanted(): return 100
+
+            # If playback is enabled, say the sentence in the language's voice
+            if self.settings.playback:
+                speaking.speak(sent_phonetics, self.settings.voice)
+                if not self.still_wanted():  # don't start recording if they turned it off mid-playback
+                    return
 
             self._show(attempt=attempt_num, max_attempts=max_attempts,
                        recording=Recording(estimated_duration), similarity_percent=None)
