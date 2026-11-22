@@ -133,8 +133,14 @@ class Window(ABC):
         """Drop every Tk object on this thread. If the last reference went away on another
         thread (e.g. at interpreter exit), Tk would raise 'main thread is not in main loop'
         or abort with Tcl_AsyncDelete."""
+        tk_types = (tk.Variable, tk.Misc, tk.Image)
         for name, value in list(vars(self).items()):
-            if isinstance(value, (tk.Variable, tk.Misc, tk.Image)):
+            if isinstance(value, tk_types):
+                setattr(self, name, None)
+            # Containers of Tk objects too, e.g. a list of animation frames
+            elif isinstance(value, (list, tuple, set)) and any(isinstance(v, tk_types) for v in value):
+                setattr(self, name, None)
+            elif isinstance(value, dict) and any(isinstance(v, tk_types) for v in value.values()):
                 setattr(self, name, None)
         gc.collect()  # widgets hold reference cycles; free them here, not on some other thread
 

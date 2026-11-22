@@ -47,6 +47,34 @@ def _window_title(hwnd) -> str:
     return buf.value
 
 
+GW_HWNDNEXT = 2      # GetWindow: the next window down the z-order
+DWMWA_CLOAKED = 14   # hidden by DWM though "visible", e.g. a suspended Store app
+user32.GetWindow.restype = wintypes.HWND  # avoid truncating the handle on 64-bit
+user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+
+def is_app_window(hwnd) -> bool:
+    """A window the user could be working in: a live, visible, titled window of another
+    process (not ours, not a tool window, not minimized or cloaked)."""
+    if not hwnd or not user32.IsWindow(hwnd) or not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+        return False
+    if _window_pid(hwnd) == os.getpid() or user32.GetWindowTextLengthW(hwnd) == 0:
+        return False
+    if user32.GetWindowLongW(hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW:
+        return False
+    cloaked = ctypes.c_int(0)
+    ctypes.windll.dwmapi.DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
+    return not cloaked.value
+
+def app_window_below(hwnd) -> int | None:
+    """The highest app window under hwnd in the z-order: what the user was most likely
+    using before hwnd appeared on top."""
+    below = user32.GetWindow(hwnd, GW_HWNDNEXT)
+    while below:
+        if is_app_window(below):
+            return below
+        below = user32.GetWindow(below, GW_HWNDNEXT)
+    return None
+
 def make_click_through(hwnd: int):
     """Let all mouse input pass through the window to the windows below (Windows only)."""
     style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)

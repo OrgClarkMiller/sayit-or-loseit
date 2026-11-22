@@ -1,7 +1,8 @@
 import threading
 from sentence_generation.sentence_generator import SentenceGenerator
 from tray import TrayManager
-from window import ConfigurationWindow, OverlayWindow
+from window import ConfigurationWindow
+from window.overlay_window import OverlayWindow, ProcessingIndicator
 import config
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
 import time
@@ -32,6 +33,7 @@ class AppContext:
         # The config window can be opened and closed repeatedly; a fresh one is made each time.
         self._windows_lock = threading.Lock()  # launches can come from the tray or worker thread
         self.config_window = None
+        self.prev_challenge_time = None
 
         self.apply_config()
 
@@ -51,13 +53,16 @@ class AppContext:
         )
 
     def on_change_target_language(self):
-        print('on_change_target_language')
+        print('on_change_target_language()')
         # Initialize the backend rightaway since it takes a long time
+        # TODO: Enable loading icon with text "Setting Up Language"
         target_lang = config.get_config().get("Language", "target")
-        print(f"Initializing {target_lang}'s phonetic backend")
         phon.init_lang(target_lang)
         speaking.load_voice(target_lang)  # the target language's voice, not the English default
-        print(f"Finished initializing {target_lang}'s phonetic backend")
+
+    def on_change_challenge_status(self):
+        print('on_change_challenge_status()')
+        self.prev_challenge_time = None # Make the challenge start right away
 
     def _init_backends(self):
         self.on_change_target_language()
@@ -88,6 +93,30 @@ class AppContext:
             self.config_window = ConfigurationWindow(self)
             self.config_window.start()
 
+    # The main work being done by the worker thread
+    def worker(self):
+        """Worker loop: runs until the user clicks Quit in the tray."""
+        while not self.stop_event.is_set():
+            # TODO: poll / handle system events here
+            print("checking for events...")
+
+            conf = config.get_config()
+            is_active = conf.getboolean('Challenge', 'is_active')
+
+            self._update_overlay(is_active)
+            if is_active:
+                # Run challenge logic
+                now = time.perf_counter()
+                if (self.prev_challenge_time is None) or (now - self.prev_challenge_time > CONTEXT_READ_DELAY):
+                    self._run_challenge()
+                    self.prev_challenge_time = now
+
+            # Like sleep(1), but returns immediately when stop_event is set,
+            # so Quit doesn't have to wait for the sleep to finish.
+            self.stop_event.wait(1)
+
+        print("worker shutting down")
+
     def _update_overlay(self, show):
         if not show and self.overlay is not None:
             self.overlay.close()
@@ -107,12 +136,14 @@ class AppContext:
     def _compare_voice_input(self, target_lang: str, sent_phonetics: list[str], estimated_duration: float) -> FailSeverity:
         attempts = []
 
-        for _ in range(VOICE_INPUT_MAX_ATTEMPTS):
-            print('recording voice')
+        for attempt_num in range(1, VOICE_INPUT_MAX_ATTEMPTS + 1):
+            if not self._challenge_still_wanted(): return FailSeverity.PERFECT # TODO: Any potential cleanup
+
+            self.overlay.set_attempt(attempt_num, VOICE_INPUT_MAX_ATTEMPTS)
             self.overlay.set_recording(True, estimated_duration)
             wav = recording.record(estimated_duration)
             self.overlay.set_recording(False)
-            print('finished recording voice')
+
             if not self._challenge_still_wanted():  # turned off while recording: no score, no punishment
                 return FailSeverity.PERFECT
             resp_phon = phon.generate(wav, target_lang)
@@ -125,6 +156,7 @@ class AppContext:
                 return fail_severity
 
             attempts.append(fail_severity) # Add to attempts
+            time.sleep(1.5) # Sleep for 1.5 seconds so that the percent is visible and you can see how you did
 
         if len(attempts) == 0:
             return FailSeverity.PERFECT
@@ -139,13 +171,12 @@ class AppContext:
         if s_ctx is None:
             return
 
-        # 1. Generate Sentence and phonetics
-        print('Generating Sentence')
-        gen = self.generator.generate(s_ctx)
+        with ProcessingIndicator(self.overlay, "Generating Sentence"):
+            # 1. Generate Sentence and phonetics
+            gen = self.generator.generate(s_ctx)
+
         if not self._challenge_still_wanted():  # the Gemini call can take a few seconds
             return
-
-        print('Sentence Generated')
 
         target_lang = conf['Language']['target']
         proficieny = conf['Language']['proficiency']
@@ -154,9 +185,7 @@ class AppContext:
         self.overlay.set_source_lang_sentence(gen.source_lang)
         self.overlay.set_target_lang_sentence(gen.target_lang)
 
-        print('Generating phonetics')
         sent_phon = phon.generate(gen.target_lang, target_lang)
-        print('Phonetics generated')
 
         if conf.getboolean("Challenge", "playback"):
             speaking.speak(sent_phon)
@@ -172,31 +201,3 @@ class AppContext:
         if fail_severity > FailSeverity.CLOSE:
             pun = punishment_factory(fail_severity)
             pun.punish()
-
-    # The main work being done by the worker thread
-    def worker(self):
-        prev_read_time = None
-
-        """Worker loop: runs until the user clicks Quit in the tray."""
-        while not self.stop_event.is_set():
-            # TODO: poll / handle system events here
-            print("checking for events...")
-
-            conf = config.get_config()
-            is_active = conf.getboolean('Challenge', 'is_active')
-            if not is_active:
-                self._update_overlay(False)
-            else:
-                self._update_overlay(True)
-
-                # Run challenge logic
-                now = time.perf_counter()
-                if (prev_read_time is None) or (now - prev_read_time > CONTEXT_READ_DELAY):
-                    self._run_challenge()
-                    prev_read_time = now
-
-            # Like sleep(1), but returns immediately when stop_event is set,
-            # so Quit doesn't have to wait for the sleep to finish.
-            self.stop_event.wait(1)
-
-        print("worker shutting down")
