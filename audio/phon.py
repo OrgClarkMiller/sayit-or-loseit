@@ -71,17 +71,35 @@ def generate(source: str | np.ndarray, target_language: str) -> list[str]:
 def speak_duration_estimate(phon: list[str], proficiency: str) -> float:
     return len(phon) * SECONDS_PER_PHONEME[proficiency] + RECORD_PADDING
 
+# espeak (the expected phonemes) and the recognizer (what was heard) sometimes write the
+# same sound differently, which would count as an error however well it was said. Both
+# sides are rewritten with these before comparing, longest first so 'ɛɪ' goes before 'ɪ'.
+# Found by running Piper voices through the recognizer: Dutch scored ~56% on perfect
+# speech without them (g: ɣ/x, w: ʋ/v, ij: ɛɪ/aɪ).
+_EQUIVALENT = [
+    ("ɛɪ", "aɪ"),                                     # Dutch ij/ei
+    ("ɣ", "x"), ("χ", "x"),                           # Dutch g: written ɣ, said (and heard) as x
+    ("ʋ", "v"),                                       # Dutch w
+    ("ɾ", "r"), ("ʀ", "r"), ("ʁ", "r"),               # r variants
+    ("ɵ", "ə"), ("ɐ", "ə"),                           # near-schwa vowels
+    ("ː", ""), ("ˑ", ""),                             # length marks: the recognizer drops them unevenly
+]
+
+# A vowel heard as a neighbouring vowel ('ɛ' for 'ə') is a near miss, not a wrong sound
+_VOWELS = set("aeiouyæɑɐɒɔəɘɛɜɞɤɨɪʉʊʌʏœøɵɯɶ")
+_VOWEL_SWAP_COST = 0.5
+
 def similarity(expected: list[str], actual: list[str]) -> float:
     """How close the phonemes heard were to the expected ones, as a percentage (0-100).
 
-    e.g. similarity(['h', 'ə', 'l', 'oʊ'], ['h', 'ɛ', 'l', 'oʊ']) -> 80.0
+    e.g. similarity(['h', 'ə', 'l', 'oʊ'], ['h', 'ɛ', 'l', 'oʊ']) -> 90.0
 
     Compares symbol by symbol rather than phone by phone, so espeak and the recognizer
-    splitting sounds differently ('ɑːɹ' vs 'ɑː', 'ɹ') isn't an error, and a near miss like
-    'ɜ' for 'ɜː' only costs the missing length mark.
+    splitting sounds differently ('ɑːɹ' vs 'ɑː', 'ɹ') isn't an error. Spellings of the same
+    sound are merged first (_EQUIVALENT), and one vowel for another costs half an error.
     """
-    exp = "".join(expected)
-    act = "".join(actual)
+    exp = _normalize("".join(expected))
+    act = _normalize("".join(actual))
     if not exp:
         return 100.0 if not act else 0.0
 
@@ -89,15 +107,26 @@ def similarity(expected: list[str], actual: list[str]) -> float:
     # 1/len(expected). Extra sounds count too, so long babble can't score well.
     return max(0.0, 1 - _edit_distance(exp, act) / len(exp)) * 100
 
-def _edit_distance(a: str, b: str) -> int:
-    """Levenshtein distance: fewest insertions, deletions and substitutions turning a into b."""
+def _normalize(phonemes: str) -> str:
+    for spelling, canonical in _EQUIVALENT:
+        phonemes = phonemes.replace(spelling, canonical)
+    return phonemes
+
+def _substitution_cost(a: str, b: str) -> float:
+    if a == b:
+        return 0.0
+    return _VOWEL_SWAP_COST if a in _VOWELS and b in _VOWELS else 1.0
+
+def _edit_distance(a: str, b: str) -> float:
+    """Weighted Levenshtein distance: fewest insertions, deletions and substitutions turning
+    a into b, where a vowel-for-vowel substitution costs _VOWEL_SWAP_COST."""
     prev = list(range(len(b) + 1))
     for i, ca in enumerate(a, 1):
         cur = [i]
         for j, cb in enumerate(b, 1):
-            cur.append(min(prev[j] + 1,                 # delete ca
-                           cur[j - 1] + 1,              # insert cb
-                           prev[j - 1] + (ca != cb)))   # substitute (free if equal)
+            cur.append(min(prev[j] + 1,                                  # delete ca
+                           cur[j - 1] + 1,                               # insert cb
+                           prev[j - 1] + _substitution_cost(ca, cb)))    # substitute
         prev = cur
     return prev[-1]
 

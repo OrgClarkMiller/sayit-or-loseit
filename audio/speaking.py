@@ -17,6 +17,8 @@ VOICE_MODEL_DIR_PATH = Path(__file__).parent.parent / "assets" / "voice-models"
 #   python -m piper.download_voices <name> --download-dir assets/voice-models
 # All are espeak-phoneme voices, since speak() feeds them espeak phonemes from audio/phon.py.
 # Voices list: https://huggingface.co/rhasspy/piper-voices/blob/main/voices.json
+# Where a language has several, the pick is the most intelligible: each candidate's speech
+# was run back through phon's recognizer and scored with phon.similarity.
 lang_model_name_dict = {
     'sq':    'sq_AL-edon-medium.onnx',
     'eu':    'eu_ES-antton-medium.onnx',
@@ -27,12 +29,12 @@ lang_model_name_dict = {
     'en-us': 'en_US-lessac-medium.onnx',
     'et':    'et_EE-news-medium.onnx',
     'fi':    'fi_FI-harri-medium.onnx',
-    'fr-fr': 'fr_FR-siwis-medium.onnx',
-    'de':    'de_DE-thorsten-medium.onnx',
-    'hu':    'hu_HU-anna-medium.onnx',
-    'is':    'is_IS-bui-medium.onnx',
+    'fr-fr': 'fr_FR-tom-medium.onnx',
+    'de':    'de_DE-thorsten-high.onnx',
+    'hu':    'hu_HU-imre-medium.onnx',
+    'is':    'is_IS-steinn-medium.onnx',
     'id':    'id_ID-news_tts-medium.onnx',
-    'it':    'it_IT-paola-medium.onnx',
+    'it':    'it_IT-serena-high.onnx',
     'ku':    'ku_TR-berfin_renas-medium.onnx',
     'lv':    'lv_LV-aivars-medium.onnx',
     'lb':    'lb_LU-marylux-medium.onnx',
@@ -42,7 +44,7 @@ lang_model_name_dict = {
     'ro':    'ro_RO-mihai-medium.onnx',
     'sk':    'sk_SK-lili-medium.onnx',
     'sl':    'sl_SI-artur-medium.onnx',
-    'es':    'es_ES-davefx-medium.onnx',
+    'es':    'es_ES-sharvard-medium.onnx',
     'sw':    'sw_CD-lanfrica-medium.onnx',
     'sv':    'sv_SE-nst-medium.onnx',
     'tr':    'tr_TR-dfki-medium.onnx',
