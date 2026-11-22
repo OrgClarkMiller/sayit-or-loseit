@@ -3,8 +3,9 @@ from enum import StrEnum
 # espeak-ng language codes, as accepted by phonemizer's espeak backend, and each the espeak
 # voice its Piper model was trained with (see audio/speaking.py).
 #
-# Only languages written in the Latin alphabet (accents are fine, e.g. Polish,
+# Mostly languages written in the Latin alphabet (accents are fine, e.g. Polish,
 # Czech), so the sentence can be read off the overlay without learning a new script.
+# Russian is the exception, kept despite Cyrillic.
 # Also needs a Piper voice trained on espeak phonemes, which rules out Lithuanian, and
 # one clear enough that saying the sentence perfectly scores a pass (50%+ with
 # phon.similarity), which rules out Danish (47%) and Vietnamese (28%, tonal).
@@ -30,6 +31,7 @@ LANGUAGE_SHORT_FORM = {
     'Polish':             'pl',
     'Portuguese':         'pt-br',  # Brazilian
     'Romanian':           'ro',
+    'Russian':            'ru',
     'Slovak':             'sk',
     'Slovenian':          'sl',
     'Spanish':            'es',

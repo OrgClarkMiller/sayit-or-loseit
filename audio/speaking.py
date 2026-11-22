@@ -41,6 +41,7 @@ lang_model_name_dict = {
     'pl':    'pl_PL-gosia-medium.onnx',
     'pt-br': 'pt_BR-cadu-medium.onnx',
     'ro':    'ro_RO-mihai-medium.onnx',
+    'ru':    'ru_RU-irina-medium.onnx',
     'sk':    'sk_SK-lili-medium.onnx',
     'sl':    'sl_SI-artur-medium.onnx',
     'es':    'es_ES-sharvard-medium.onnx',
