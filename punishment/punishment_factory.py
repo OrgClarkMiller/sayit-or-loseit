@@ -1,25 +1,12 @@
 from .fail_severity import FailSeverity
-from .media_punishment import MediaPunishment
-from .fps_punishment import FPSPunishment
+from .media_punishment import MediaPunishment, is_media
+from .fps_punishment import FPSPunishment, is_fps
 from .generic_punishment import GenericPunishment
 from .punishment import Punishment
 # Absolute: punishment is a top-level package, so ".." has nowhere to go. And from the
 # submodule, not the window package: window/__init__ imports overlay_window, which imports
 # punishment, so "from window import ..." would hit a half-loaded window package.
 from window.window_helpers import get_focused_details
-
-FPS_NAMES = set(['csgo'])
-MEDIA_NAMES = set(['youtube', 'netflix', 'disneyplus', 'anime', 'cartoon', 'wcofun'])
-
-def is_media(window_name_split: list[str]):
-    for s in window_name_split:
-        if s in MEDIA_NAMES: return True
-    return False
-
-def is_fps(window_name_split: list[str]):
-    for s in window_name_split:
-        if s in FPS_NAMES: return True
-    return False
 
 def punishment_factory(fail_severity: FailSeverity) -> Punishment:
     wnd_dets = get_focused_details()
@@ -34,4 +21,5 @@ def punishment_factory(fail_severity: FailSeverity) -> Punishment:
     if is_fps(wnd_name_splt):
         return FPSPunishment(fail_severity)
 
+    # This punishments works on any program, does a variety of non-program specific tasks
     return GenericPunishment(fail_severity)

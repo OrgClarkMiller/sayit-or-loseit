@@ -2,6 +2,15 @@ from .punishment import Punishment, FailSeverity, PunishAction
 import mouse
 import random
 
+MAX_FLICK = 100
+MIN_FLICK = 25
+
+FPS_NAMES = set(['csgo', 'beanbattles'])
+def is_fps(window_name_split: list[str]):
+    for s in window_name_split:
+        if s in FPS_NAMES: return True
+    return False
+
 class MouseFlickPunishAction(PunishAction):
     def __init__(self):
         super().__init__('Mouse Flick')
@@ -9,8 +18,8 @@ class MouseFlickPunishAction(PunishAction):
     def punish(self):
         from_x, from_y = mouse.get_position()
 
-        x_diff = random.randint(0, 25)
-        y_diff = random.randint(0, 25)
+        x_diff = random.randint(MIN_FLICK, MAX_FLICK)
+        y_diff = random.randint(MIN_FLICK, MAX_FLICK)
 
         # Update mouses position to dragged in random direction
         mouse.drag(from_x, from_y, from_x + x_diff, from_y + y_diff, absolute=False, duration=0.1)

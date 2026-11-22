@@ -2,6 +2,13 @@ import keyboard
 from .punishment import Punishment, FailSeverity, PunishAction
 import time
 
+MEDIA_NAMES = set(['youtube', 'netflix', 'disneyplus', 'anime', 'cartoon', 'wcofun'])
+
+def is_media(window_name_split: list[str]):
+    for s in window_name_split:
+        if s in MEDIA_NAMES: return True
+    return False
+
 class SpamSpacePunishAction(PunishAction):
     def __init__(self):
         super().__init__('Rapid Media Pause')
