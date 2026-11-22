@@ -1,7 +1,12 @@
+from pathlib import Path
+
 from .punishment import Punishment, FailSeverity, PunishAction
 from playsound import playsound
 
+ROOT_DIR = Path(__file__).parent.parent
+AUDIO_DIR = ROOT_DIR / "assets" / "audio"
 
+AIRHORN_PATH  = AUDIO_DIR / "airhorn.mp3"
 
 class AirhornPunishAction(PunishAction):
     def __init__(self):
@@ -9,7 +14,7 @@ class AirhornPunishAction(PunishAction):
 
     def punish(self):
         #TODO: Store old volume val, set to max, restor to old volume val
-        pass
+        playsound(str(AIRHORN_PATH))
 
 # TODO: FINISH ACTIONS
 def _get_action(severity: FailSeverity):
