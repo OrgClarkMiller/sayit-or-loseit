@@ -59,8 +59,8 @@ class ChallengeScheduler:
         prev_challenge_time = None
 
         get_rand_delay = lambda: random.randint(self._min_delay, self._max_delay)
-
         delay = get_rand_delay()
+
         while not self._stop_event.is_set():
             # Cleared before looking at any state: a wake-up arriving during this pass stays
             # set, so the wait below returns at once and the next pass sees the change.
@@ -75,7 +75,7 @@ class ChallengeScheduler:
                 if due or self._run_now.is_set():
                     self._run_now.clear()
                     ChallengeRound(settings, overlay, lambda: self._still_wanted(settings)).run()
-                    prev_challenge_time = now
+                    prev_challenge_time = time.perf_counter()
                     delay = get_rand_delay()
 
             self._wake.wait(1)
