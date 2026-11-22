@@ -14,6 +14,7 @@ HEADER_FONT   = ("Segoe UI Semibold", 9)
 STATUS_FONT   = ("Segoe UI Semibold", 9)
 SENTENCE_FONT = ("Segoe UI Semibold", 15)
 SMALL_FONT    = ("Segoe UI", 10)
+TITLE_FONT    = ("Segoe UI", 13, "bold")
 
 PAD = 12              # px around the content
 MIN_WIDTH = 300       # px, so short sentences don't make a tiny, jumpy overlay

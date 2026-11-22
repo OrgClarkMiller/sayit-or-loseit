@@ -8,9 +8,9 @@ from screen_io.screen_capture import exclude_from_capture, user32
 from ..window import MARGIN, Window, WindowPosition
 from ..window_helpers import app_window_below, hwnd, is_app_window, make_click_through, round_corners
 from .images import tinted_frames, tinted_icon
-from .states import ChallengeState, OverlayState, ProcessingState, PunishmentState
+from .states import ChallengeState, OverlayState, ProcessingState, PunishmentState, SuccessState
 from .style import MIC_IDLE_COLOR, MIC_RECORDING_COLOR, TRANSPARENT, loading_gif_icon, mic_icon
-from .views import ContentView, OverlayView, ProcessingView, PunishmentView
+from .views import ContentView, OverlayView, ProcessingView, PunishmentView, SuccessView
 
 if TYPE_CHECKING:  # forward ref: app_context imports this module, so a real import would be circular
     from app_context import AppContext
@@ -60,6 +60,8 @@ class OverlayWindow(Window):
                 return self._processing_view
             case PunishmentState():
                 return self._punishment_view
+            case SuccessState():
+                return self._success_view
         raise TypeError(f"No overlay view for {type(state).__name__}")
 
     def _render_state(self, state: OverlayState):
@@ -131,6 +133,7 @@ class OverlayWindow(Window):
         self._content_view    = ContentView(self.canvas, self._layout, self.mic_idle_icon, self.mic_recording_icon)
         self._processing_view = ProcessingView(self.canvas, self._layout, self.loading_frames)
         self._punishment_view = PunishmentView(self.canvas, self._layout)
+        self._success_view    = SuccessView(self.canvas, self._layout, self.mic_recording_icon)
 
         self._content = ChallengeState()             # what clear_state() goes back to
         self._current: OverlayState | None = None    # showing now
@@ -187,5 +190,5 @@ class OverlayWindow(Window):
     def _release_tk(self):
         # The views hold the canvas and images but aren't Tk objects themselves, so the
         # base class wouldn't drop them: do it here, so they're freed on the Tk thread
-        self._content_view = self._processing_view = self._punishment_view = self._current_view = None
+        self._content_view = self._processing_view = self._punishment_view = self._success_view = self._current_view = None
         super()._release_tk()

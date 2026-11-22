@@ -12,7 +12,9 @@ from dataclasses import dataclass, field
 from punishment.fail_severity import FailSeverity
 
 PROCESSING_HIDE_GRACE_MS = 400  # how long the spinner lingers in case another loading step follows
-PUNISHMENT_MIN_SHOW_MS = 2500   # instant punishments (a tab closing) still get read before the round's content returns
+RESULT_SHOW_MS = 1500           # how long a round's result (punishment or success) stays up before the next screen
+PUNISHMENT_MIN_SHOW_MS = RESULT_SHOW_MS  # instant punishments (a tab closing) still get read
+SUCCESS_MIN_SHOW_MS = RESULT_SHOW_MS
 
 
 class OverlayState:
@@ -90,7 +92,26 @@ class ChallengeState(OverlayState):
     similarity_percent: float | None = None
 
 
-@dataclass(frozen=True, eq=True)
+@dataclass(frozen=True, eq=False)
 class SuccessState(OverlayState):
-    similarity: float = ""
+    """Shown instead of a punishment when the sentence passed (PERFECT in green, CLOSE in lime):
+
+        FRENCH · A2                             🎤 96%
+                       ✔ Nailed it!
+               Le chat dort sur le canapé rouge.
+               ‾‾ ‾‾‾‾ ‾‾‾‾ ‾‾‾ ‾‾ ‾‾‾‾‾‾ ‾‾‾‾‾‾
+                 the cat sleeps on the red sofa
+        ▬▬▬▬▬▬▬▬▬▬───────────────   No punishment · next round
+    """
+    similarity: float = 0.0
     target_sentence: str = ""
+    source_sentence: str = ""
+    language: str = ""
+    level: str = ""
+
+    @classmethod
+    def from_challenge(cls, state: ChallengeState, similarity: float) -> "SuccessState":
+        return cls(similarity, state.target_sentence, state.source_sentence, state.language, state.level)
+
+    def hold_ms(self, shown_for_ms: float) -> int:
+        return max(0, int(SUCCESS_MIN_SHOW_MS - shown_for_ms))

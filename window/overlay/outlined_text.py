@@ -42,6 +42,12 @@ class OutlinedText:
             self._canvas.coords(item, x + dx, y + dy)
             self._canvas.itemconfigure(item, anchor=anchor)
 
+    def delete(self):
+        """Remove it from the canvas for good."""
+        for item, _, _ in self._items:
+            self._canvas.delete(item)
+        self._items = []
+
     def set_visible(self, visible: bool):
         state = "normal" if visible else "hidden"
         for item, _, _ in self._items:

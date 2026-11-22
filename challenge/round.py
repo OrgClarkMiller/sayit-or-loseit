@@ -5,11 +5,12 @@ from typing import Callable
 from audio import phon, recording, speaking
 from punishment import FailSeverity, get_fail_severity, punishment_factory
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
-from window.overlay import ChallengeState, OverlayWindow, ProcessingIndicator, PunishmentIndicator, Recording
+from window.overlay import ChallengeState, OverlayWindow, ProcessingIndicator, ProcessingState, PunishmentIndicator, Recording, SuccessState
 
 from .settings import ChallengeSettings
 
 SCORE_SHOW_SECONDS       = 1.5  # pause after a failed attempt so the percent can be read
+WAITING_MESSAGE          = "Waiting for next round"
 
 
 class ChallengeRound:
@@ -59,23 +60,30 @@ class ChallengeRound:
         est_dur = phon.speak_duration_estimate(sent_phon, self.settings.proficiency)
 
         # 6. Record the user and compare their phonetics against the sentence's
-        fail_severity = self._score_attempts(sent_phon, est_dur)
+        percent_similar = self._score_attempts(sent_phon, est_dur)
         if not self.still_wanted():
             return
+
+        fail_severity = get_fail_severity(percent_similar)
 
         # 7. Punish the user if they did a bad job
         if fail_severity > FailSeverity.CLOSE:
             self._punish(fail_severity)
+        else:
+            self.overlay.render_state(SuccessState.from_challenge(self._state, percent_similar))
 
-    def _score_attempts(self, sent_phonetics: list[str], estimated_duration: float) -> FailSeverity:
+        # 8. Spinner until the next round. The result above holds the screen for its
+        # RESULT_SHOW_MS first (see hold_ms), so this only appears once that's up.
+        self.overlay.render_state(ProcessingState(WAITING_MESSAGE))
+
+    def _score_attempts(self, sent_phonetics: list[str], estimated_duration: float) -> float:
         """Up to settings.max_attempts tries; stops at the first good enough one.
-        Returns the best attempt's severity."""
+        Returns the best attempt's similarity percentage."""
         attempts = []
         max_attempts = self.settings.max_attempts
 
         for attempt_num in range(1, max_attempts + 1):
-            if not self.still_wanted():
-                return FailSeverity.PERFECT  # TODO: Any potential cleanup
+            if not self.still_wanted(): return 100
 
             self._show(attempt=attempt_num, max_attempts=max_attempts,
                        recording=Recording(estimated_duration), similarity_percent=None)
@@ -90,15 +98,14 @@ class ChallengeRound:
             self._show(similarity_percent=percent_similar)
 
             fail_severity = get_fail_severity(percent_similar)
-            if fail_severity < FailSeverity.MEDIUM:
-                return fail_severity
 
-            attempts.append(fail_severity)
+            if fail_severity < FailSeverity.MEDIUM: return percent_similar
+
+            attempts.append(percent_similar)
             time.sleep(SCORE_SHOW_SECONDS)
 
-        if not attempts:
-            return FailSeverity.PERFECT
-        return min(attempts)  # only the best attempt counts
+        if not attempts: return 100
+        return max(attempts)  # only the best attempt counts
 
     def _punish(self, fail_severity: FailSeverity):
         pun = punishment_factory(fail_severity)
