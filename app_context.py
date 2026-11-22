@@ -1,7 +1,7 @@
 import threading
 from tray import TrayManager
 from window import ConfigurationWindow
-from window.overlay_window import OverlayWindow
+from window.overlay import OverlayWindow
 import config
 from audio import phon
 from challenge import ChallengeScheduler, SettingsStore
@@ -19,7 +19,7 @@ class AppContext:
         self.tray_thread = threading.Thread(target=self.tray.run, daemon=True)
 
         # Windows run on their own threads (started by .start()) and close on stop_event.
-        # Their public methods are thread-safe, e.g. ctx.overlay.set_text("hi") from anywhere.
+        # Their public methods are thread-safe, e.g. ctx.overlay.render_state(...) from anywhere.
         self.overlay = None
         self._update_overlay(config.get_config().getboolean('Challenge', 'is_active')) # Show the overlay
 

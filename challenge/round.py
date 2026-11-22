@@ -1,10 +1,11 @@
 import time
+from dataclasses import replace
 from typing import Callable
 
 from audio import phon, recording, speaking
 from punishment import FailSeverity, get_fail_severity, punishment_factory
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
-from window.overlay_window import OverlayWindow, ProcessingIndicator
+from window.overlay import ChallengeState, OverlayWindow, ProcessingIndicator, PunishmentIndicator, Recording
 
 from .settings import ChallengeSettings
 
@@ -26,6 +27,7 @@ class ChallengeRound:
         self.settings = settings
         self.overlay = overlay
         self.still_wanted = still_wanted
+        self._state = ChallengeState()  # what the overlay shows for this round
 
     def run(self):
         print('ChallengeRound.run()')
@@ -41,9 +43,8 @@ class ChallengeRound:
             return
 
         # 2. Show it
-        self.overlay.set_language_label(self.settings.target_lang, self.settings.proficiency)
-        self.overlay.set_source_lang_sentence(gen.source_lang)
-        self.overlay.set_target_lang_sentence(gen.target_lang)
+        self._show(language=self.settings.target_lang, level=self.settings.proficiency,
+                   target_sentence=gen.target_lang, source_sentence=gen.source_lang)
 
         # 3. Phonetics of the generated sentence
         sent_phon = phon.generate(gen.target_lang, self.settings.target_lang)
@@ -76,17 +77,17 @@ class ChallengeRound:
             if not self.still_wanted():
                 return FailSeverity.PERFECT  # TODO: Any potential cleanup
 
-            self.overlay.set_attempt(attempt_num, max_attempts)
-            self.overlay.set_recording(True, estimated_duration)
+            self._show(attempt=attempt_num, max_attempts=max_attempts,
+                       recording=Recording(estimated_duration), similarity_percent=None)
             wav = recording.record(estimated_duration)
-            self.overlay.set_recording(False)
+            self._show(recording=None)
 
             if not self.still_wanted():  # turned off while recording: no score, no punishment
                 return FailSeverity.PERFECT
             resp_phon = phon.generate(wav, self.settings.target_lang)
 
             percent_similar = phon.similarity(sent_phonetics, resp_phon)
-            self.overlay.set_similarity_percent(percent_similar)
+            self._show(similarity_percent=percent_similar)
 
             fail_severity = get_fail_severity(percent_similar)
             if fail_severity < FailSeverity.MEDIUM:
@@ -105,8 +106,10 @@ class ChallengeRound:
             print("No punishment available")
             return
 
-        self.overlay.set_punishment(pun.get_punishment_name(), fail_severity)
-        try:
+        with PunishmentIndicator(self.overlay, pun.get_punishment_name(), fail_severity):
             pun.punish()
-        finally:
-            self.overlay.set_punishment()  # clear it even if the punishment fails
+
+    def _show(self, **changes):
+        """Update this round's ChallengeState and render it."""
+        self._state = replace(self._state, **changes)
+        self.overlay.render_state(self._state)

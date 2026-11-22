@@ -4,7 +4,7 @@ from typing import Callable
 import random
 
 import config
-from window.overlay_window import OverlayWindow
+from window.overlay import OverlayWindow
 
 from .round import ChallengeRound
 from .settings import ChallengeSettings, SettingsStore

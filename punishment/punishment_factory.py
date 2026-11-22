@@ -4,7 +4,7 @@ from .fps_punishment import FPSPunishment, is_fps
 from .generic_punishment import GenericPunishment
 from .punishment import Punishment
 # Absolute: punishment is a top-level package, so ".." has nowhere to go. And from the
-# submodule, not the window package: window/__init__ imports overlay_window, which imports
+# submodule, not the window package: window/__init__ imports the overlay, which imports
 # punishment, so "from window import ..." would hit a half-loaded window package.
 from window.window_helpers import get_focused_details
 

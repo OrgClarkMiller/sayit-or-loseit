@@ -7,7 +7,7 @@ from piper import PiperVoice
 import config
 from audio import phon, speaking
 from sentence_generation.sentence_generator import SentenceGenerator
-from window.overlay_window import OverlayWindow, ProcessingIndicator
+from window.overlay import OverlayWindow, ProcessingIndicator
 
 
 @dataclass(frozen=True)
