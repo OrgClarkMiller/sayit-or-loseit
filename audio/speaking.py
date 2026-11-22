@@ -24,7 +24,6 @@ lang_model_name_dict = {
     'eu':    'eu_ES-antton-medium.onnx',
     'ca':    'ca_ES-upc_ona-medium.onnx',
     'cs':    'cs_CZ-jirka-medium.onnx',
-    'da':    'da_DK-talesyntese-medium.onnx',
     'nl':    'nl_NL-ronnie-medium.onnx',      # not mls-medium: 52 audiobook speakers, near-unintelligible
     'en-us': 'en_US-lessac-medium.onnx',
     'et':    'et_EE-news-medium.onnx',
@@ -48,7 +47,6 @@ lang_model_name_dict = {
     'sw':    'sw_CD-lanfrica-medium.onnx',
     'sv':    'sv_SE-nst-medium.onnx',
     'tr':    'tr_TR-dfki-medium.onnx',
-    'vi':    'vi_VN-vais1000-medium.onnx',
     'cy':    'cy_GB-gwryw_gogleddol-medium.onnx',
 }
 
