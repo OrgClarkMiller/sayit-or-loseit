@@ -12,3 +12,15 @@ class Punishment(ABC):
     @abstractmethod
     def punish(self):
         pass
+
+class PunishAction(ABC):
+    def __init__(self, name):
+        super().__init__()
+        self.name = name
+
+    def get_name(self) -> str:
+        return self.name
+
+    @abstractmethod
+    def punish(self):
+        pass

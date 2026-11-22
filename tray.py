@@ -6,15 +6,17 @@ from typing import TYPE_CHECKING
 import pystray
 from PIL import Image
 
+from icons import Icon
+
 if TYPE_CHECKING:  # type hints only; a real import would be circular (app_context imports tray)
     from app_context import AppContext
 
-ICON_PATH = Path(__file__).parent / "assets" / "sili-logo.png"
+tray_icon = Icon('sili-logo.png', 0)
 
 class TrayManager:
     def __init__(self, ctx: AppContext):
         self.ctx = ctx
-        self.image = Image.open(ICON_PATH)
+        self.image = Image.open(tray_icon.path)
         self.menu = self.get_menu()
 
         self.icon = pystray.Icon(
