@@ -262,8 +262,7 @@ class AppContext:
         if not self._challenge_still_wanted(settings):  # the Gemini call can take a few seconds
             return
 
-        # 2.
-
+        # 2. Update UI to reflect settings
         target_lang = settings.target_lang
         proficiency = settings.proficiency
 
@@ -271,19 +270,25 @@ class AppContext:
         self.overlay.set_source_lang_sentence(gen.source_lang)
         self.overlay.set_target_lang_sentence(gen.target_lang)
 
+
+        # 3. Generate phonetics of the generated sentence
         sent_phon = phon.generate(gen.target_lang, target_lang)
 
+        # 4. If playback is enabled, playback the generated sentence in the languages voice
         if settings.playback:
             speaking.speak(sent_phon, settings.voice)
             if not self._challenge_still_wanted(settings):  # don't start recording if they turned it off mid-playback
                 return
 
+        # 5. Get the estimated duration of how long the sentence should take to say
         est_dur = phon.speak_duration_estimate(sent_phon, proficiency)
 
+
+        # 6. Listen on the mic for the users voice and compare its phonetics against the generated phonetics
         fail_severity = self._compare_voice_input(settings, sent_phon, est_dur)
         if not self._challenge_still_wanted(settings): return
 
-        # Onlish punish if they actually deserve it
+        # 7. Punish the user if they did a bad job
         if fail_severity > FailSeverity.CLOSE:
             pun = punishment_factory(fail_severity)
             if pun is not None:
