@@ -1,7 +1,8 @@
 import threading
 from sentence_generation.sentence_generator import SentenceGenerator
 from tray import TrayManager
-from window import ConfigurationWindow, OverlayWindow
+from window import ConfigurationWindow
+from window.overlay_window import OverlayWindow, ProcessingIndicator
 import config
 from sentence_generation.sentence_context_factory import sentence_context_factory, ContextKind
 import time
@@ -107,12 +108,14 @@ class AppContext:
     def _compare_voice_input(self, target_lang: str, sent_phonetics: list[str], estimated_duration: float) -> FailSeverity:
         attempts = []
 
-        for _ in range(VOICE_INPUT_MAX_ATTEMPTS):
+        for attempt_num in range(1, VOICE_INPUT_MAX_ATTEMPTS + 1):
+            self.overlay.set_attempt(attempt_num, VOICE_INPUT_MAX_ATTEMPTS)
             print('recording voice')
             self.overlay.set_recording(True, estimated_duration)
             wav = recording.record(estimated_duration)
             self.overlay.set_recording(False)
             print('finished recording voice')
+
             if not self._challenge_still_wanted():  # turned off while recording: no score, no punishment
                 return FailSeverity.PERFECT
             resp_phon = phon.generate(wav, target_lang)
@@ -125,6 +128,7 @@ class AppContext:
                 return fail_severity
 
             attempts.append(fail_severity) # Add to attempts
+            time.sleep(1.5) # Sleep for 1.5 seconds so that the percent is visible and you can see how you did
 
         if len(attempts) == 0:
             return FailSeverity.PERFECT
@@ -139,12 +143,15 @@ class AppContext:
         if s_ctx is None:
             return
 
-        # 1. Generate Sentence and phonetics
-        print('Generating Sentence')
-        gen = self.generator.generate(s_ctx)
+        with ProcessingIndicator(self.overlay):
+            # 1. Generate Sentence and phonetics
+            print('Generating Sentence')
+            self.overlay.set_processing(True)
+            gen = self.generator.generate(s_ctx)
+            self.overlay.set_processing(True)
+
         if not self._challenge_still_wanted():  # the Gemini call can take a few seconds
             return
-
         print('Sentence Generated')
 
         target_lang = conf['Language']['target']
@@ -159,9 +166,11 @@ class AppContext:
         print('Phonetics generated')
 
         if conf.getboolean("Challenge", "playback"):
+            print('Outputting playback')
             speaking.speak(sent_phon)
             if not self._challenge_still_wanted():  # don't start recording if they turned it off mid-playback
                 return
+            print('Finished outputting playback')
 
         est_dur = phon.speak_duration_estimate(sent_phon, proficieny)
 
